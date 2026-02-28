@@ -44,18 +44,18 @@ const SEGMENT_GRADIENT_FACTORS = Object.freeze({
 
 // Wind speed/gust/direction influence on segment difficulty.
 const SEGMENT_WIND_FACTORS = Object.freeze({
-  headwindDifficultyWeight: 1,
-  headCrosswindDifficultyWeight: 0.62,
-  tailCrosswindReliefWeight: 0.28,
-  gustDifficultyWeight: 0.42,
-  tailwindReliefWeight: 0.7,
+  headwindDifficultyWeight: 1.25,
+  headCrosswindDifficultyWeight: 0.9,
+  tailCrosswindReliefWeight: 0.16,
+  gustDifficultyWeight: 0.68,
+  tailwindReliefWeight: 0.42,
 });
 
 // Relative influence of effort intensity, mountain gradient and wind in final score.
 const SEGMENT_FINAL_SCORE_WEIGHTS = Object.freeze({
   effortIntensity: 0.24,
-  gradientDifficulty: 0.4,
-  windDifficulty: 0.3,
+  gradientDifficulty: 0.28,
+  windDifficulty: 0.48,
 });
 
 // Absolute references to avoid route-relative color skew on flat or mountainous tracks.
@@ -63,11 +63,11 @@ const SEGMENT_NORMALIZATION_REFERENCES = Object.freeze({
   effortPerKm: 7.2,
   uphillSlopeMPerKm: 70,
   downhillSlopeMPerKm: 90,
-  headwindSpeed: 9,
-  headCrosswindSpeed: 8,
-  tailCrosswindSpeed: 7,
-  tailwindSpeed: 9,
-  gustDeltaSpeed: 6,
+  headwindSpeed: 7.5,
+  headCrosswindSpeed: 6.5,
+  tailCrosswindSpeed: 6.5,
+  tailwindSpeed: 8,
+  gustDeltaSpeed: 4.5,
 });
 
 const SEGMENT_EFFORT_NORMALIZATION_MIX = Object.freeze({
@@ -76,8 +76,8 @@ const SEGMENT_EFFORT_NORMALIZATION_MIX = Object.freeze({
 });
 
 const SEGMENT_COLOR_INTENSITY_MIX = Object.freeze({
-  weather: 0.55,
-  terrain: 0.45,
+  weather: 0.7,
+  terrain: 0.3,
 });
 
 const ELEVATION_CACHE_STORAGE_KEY = "plugin-cycling-effort-elevation-cache";
@@ -91,16 +91,27 @@ const SEGMENT_WEIGHT_BLEND = Object.freeze({
 const SEGMENT_COLOR_TUNING = Object.freeze({
   baseSaturation: 52,
   saturationBoost: 38,
-  baseLightness: 60,
-  lightnessDropFromIntensity: 16,
-  lightnessDropFromDifficulty: 8,
+  baseLightness: 58,
+  lightnessDropFromIntensity: 20,
+  lightnessDropFromDifficulty: 12,
   downhillLightnessLift: 4,
-  minLightness: 30,
+  minLightness: 24,
   maxLightness: 66,
+});
+
+// Visual wind calibration target: Beaufort 7+ should read as darkest red
+// for adverse full-headwind conditions.
+const SEGMENT_WIND_COLOR_CALIBRATION = Object.freeze({
+  darkRedAtWindMs: 12.5,
+  headCrosswindPenaltyShare: 0.72,
+  gustPenaltyShare: 0.58,
+  tailCrosswindReliefShare: 0.45,
+  tailwindReliefShare: 1.05,
 });
 
 const ENABLE_SEGMENT_DEBUG_TOOLTIP = true;
 const SHOW_SEGMENT_DEBUG_TOOLTIPS = ENABLE_SEGMENT_DEBUG_TOOLTIP;
+const SEGMENT_DEBUG_CONSOLE_LOG_DEBOUNCE_MS = 250;
 const SEGMENT_DEBUG_TOOLTIP_MIN_WIDTH_PX = 500;
 const SEGMENT_DEBUG_TOOLTIP_MAX_WIDTH_PX = 1320;
 const SEGMENT_DEBUG_POPUP_OPTIONS = Object.freeze({
@@ -271,6 +282,20 @@ const formatSegmentDebugTooltipHtml = (segment, index) => {
     "<br/>",
   )}</div>`;
 };
+
+const buildSegmentDebugConsolePayload = (segment, index, latlng) => ({
+  segmentNumber: index + 1,
+  latlng: {
+    lat: safeNumber(latlng?.lat) ?? null,
+    lng:
+      safeNumber(latlng?.lng) ??
+      safeNumber(latlng?.lon) ??
+      safeNumber(latlng?.longitude) ??
+      null,
+  },
+  segment: segment,
+  debug: segment?.debug ?? {},
+});
 
 const blendedDomainWeights = (
   weatherWeightPercent = WEATHER_WEIGHT_PERCENTAGE,
@@ -1437,18 +1462,18 @@ class CyclingEffortController {
       }
 
       if (this.weatherSampleDebugCount < 5) {
-        consoleLog("weather sample", "debug", {
-          lat: round(lat, 4),
-          lon: round(lon, 4),
-          fromCoordsRaw: summarizeInterpolatedValue(wind),
-          fromDirectRaw: summarizeInterpolatedValue(directWindRaw),
-          gustCoordsRaw: summarizeInterpolatedValue(gust),
-          gustDirectRaw: summarizeInterpolatedValue(directGustRaw),
-          parsedFromCoords: parsedWind,
-          parsedFromDirect: directWind,
-          chosenWind,
-          gustSpeed: round(gustSpeed, 2),
-        });
+        //   consoleLog("weather sample", "debug", {
+        //     lat: round(lat, 4),
+        //     lon: round(lon, 4),
+        //     fromCoordsRaw: summarizeInterpolatedValue(wind),
+        //     fromDirectRaw: summarizeInterpolatedValue(directWindRaw),
+        //     gustCoordsRaw: summarizeInterpolatedValue(gust),
+        //     gustDirectRaw: summarizeInterpolatedValue(directGustRaw),
+        //     parsedFromCoords: parsedWind,
+        //     parsedFromDirect: directWind,
+        //     chosenWind,
+        //     gustSpeed: round(gustSpeed, 2),
+        //   });
         this.weatherSampleDebugCount += 1;
       }
 
@@ -1712,6 +1737,7 @@ class CyclingEffortController {
         terrainComponent,
         weatherPenaltyComponent,
         weatherReliefComponent,
+        windDirectionFrom: weather.windDirectionFrom,
       });
     }
 
@@ -1784,13 +1810,29 @@ class CyclingEffortController {
         0,
         1,
       );
-      const weatherMagnitudeNorm = clamp(
+      const weatherMagnitudeAvg = clamp(
         (headwindNorm +
           headCrosswindNorm * 0.8 +
           tailCrosswindNorm * 0.35 +
           tailwindNorm * 0.45 +
           gustNorm * 0.85) /
           (1 + 0.8 + 0.35 + 0.45 + 0.85),
+        0,
+        1,
+      );
+      const weatherMagnitudePeak = clamp(
+        Math.max(
+          headwindNorm,
+          headCrosswindNorm * 0.88,
+          gustNorm * 0.9,
+          tailwindNorm * 0.5,
+          tailCrosswindNorm * 0.4,
+        ),
+        0,
+        1,
+      );
+      const weatherMagnitudeNorm = clamp(
+        weatherMagnitudeAvg * 0.35 + weatherMagnitudePeak * 0.65,
         0,
         1,
       );
@@ -1815,14 +1857,52 @@ class CyclingEffortController {
         0,
         1,
       );
-      segment.normalizedEffort = normalized;
+      const adverseWindMs =
+        segment.headwindEffectiveSpeed +
+        segment.headCrosswindEffectiveSpeed *
+          SEGMENT_WIND_COLOR_CALIBRATION.headCrosswindPenaltyShare +
+        segment.gustDelta * SEGMENT_WIND_COLOR_CALIBRATION.gustPenaltyShare;
+      const assistiveWindMs =
+        segment.tailCrosswindEffectiveSpeed *
+          SEGMENT_WIND_COLOR_CALIBRATION.tailCrosswindReliefShare +
+        segment.tailwindEffectiveSpeed *
+          SEGMENT_WIND_COLOR_CALIBRATION.tailwindReliefShare;
+      const netAdverseWindMs = Math.max(0, adverseWindMs - assistiveWindMs);
+      const windVisualDifficultyNorm = clamp(
+        netAdverseWindMs /
+          Math.max(1e-6, SEGMENT_WIND_COLOR_CALIBRATION.darkRedAtWindMs),
+        0,
+        1,
+      );
+      const tailwindVisualReliefNorm = clamp(
+        assistiveWindMs /
+          Math.max(1e-6, SEGMENT_WIND_COLOR_CALIBRATION.darkRedAtWindMs),
+        0,
+        1,
+      );
+      const colorDifficulty = clamp(
+        Math.max(
+          windVisualDifficultyNorm,
+          normalized * 0.48 +
+            Math.max(windDifficultyNorm, weatherMagnitudePeak) * 0.6 -
+            tailwindVisualReliefNorm * 0.26,
+        ),
+        0,
+        1,
+      );
+      segment.normalizedEffort = colorDifficulty;
       segment.color = colorForSegmentDifficulty(
-        normalized,
+        colorDifficulty,
         intensityNorm,
         downhillNorm,
       );
       segment.debug = {
         normalizedEffort,
+        compositeDifficultyNorm: normalized,
+        colorDifficultyNorm: colorDifficulty,
+        windVisualDifficultyNorm,
+        tailwindVisualReliefNorm,
+        netAdverseWindMs,
         gradientDifficultyNorm,
         windDifficultyNorm,
         effortWeight: domainWeights.effort,
@@ -1989,6 +2069,12 @@ class CyclingEffortController {
       }
       const content = formatSegmentDebugTooltipHtml(segment, index);
       this.segmentDebugPopup.setLatLng(latlng).setContent(content).openOn(map);
+      const debugPayload = buildSegmentDebugConsolePayload(
+        segment,
+        index,
+        latlng,
+      );
+      console.log("[cycling-effort] Segment debug tooltip data", debugPayload);
       const popupEl = this.segmentDebugPopup.getElement?.();
       if (popupEl) {
         popupEl.style.pointerEvents = "none";
@@ -2089,20 +2175,20 @@ class CyclingEffortController {
       }
       if (index === 0) {
         const pathStroke = polyline._path?.getAttribute?.("stroke");
-        consoleLog("renderSegments first-layer", "debug", {
-          requestedColor: segment.color,
-          effectiveOptionColor: polyline.options?.color,
-          domStroke: pathStroke ?? null,
-          weight: polyline.options?.weight,
-          pane: polyline.options?.pane,
-          className: polyline.options?.className,
-        });
+        // consoleLog("renderSegments first-layer", "debug", {
+        //   requestedColor: segment.color,
+        //   effectiveOptionColor: polyline.options?.color,
+        //   domStroke: pathStroke ?? null,
+        //   weight: polyline.options?.weight,
+        //   pane: polyline.options?.pane,
+        //   className: polyline.options?.className,
+        // });
       }
     }
-    consoleLog("renderSegments completed", "debug", {
-      segmentCount: segments.length,
-      uniqueColors: [...new Set(segments.map((segment) => segment.color))],
-    });
+    // consoleLog("renderSegments completed", "debug", {
+    //   segmentCount: segments.length,
+    //   uniqueColors: [...new Set(segments.map((segment) => segment.color))],
+    // });
   }
 
   async recompute(reason) {
