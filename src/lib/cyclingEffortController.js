@@ -29,8 +29,8 @@ const SEGMENT_EFFORT_MODIFIERS = Object.freeze({
   maxDownhillReliefShare: 0.28,
   minEffortShareOfBase: 0.3,
   headwindEffortPerMsPerKm: 0.52,
-  crosswindEffortPerMsPerKm: 0.2,
-  gustEffortPerMsPerKm: 0.36,
+  headCrosswindEffortPerMsPerKm: 0.34,
+  tailCrosswindReliefPerMsPerKm: 0.2,
   tailwindReliefPerMsPerKm: 0.34,
   maxTailwindReliefShare: 0.24,
 });
@@ -45,8 +45,9 @@ const SEGMENT_GRADIENT_FACTORS = Object.freeze({
 // Wind speed/gust/direction influence on segment difficulty.
 const SEGMENT_WIND_FACTORS = Object.freeze({
   headwindDifficultyWeight: 1,
-  crosswindDifficultyWeight: 0.42,
-  gustDifficultyWeight: 0.55,
+  headCrosswindDifficultyWeight: 0.62,
+  tailCrosswindReliefWeight: 0.28,
+  gustDifficultyWeight: 0.42,
   tailwindReliefWeight: 0.7,
 });
 
@@ -63,8 +64,9 @@ const SEGMENT_NORMALIZATION_REFERENCES = Object.freeze({
   uphillSlopeMPerKm: 70,
   downhillSlopeMPerKm: 90,
   headwindSpeed: 9,
+  headCrosswindSpeed: 8,
+  tailCrosswindSpeed: 7,
   tailwindSpeed: 9,
-  crosswindSpeed: 8,
   gustDeltaSpeed: 6,
 });
 
@@ -256,14 +258,14 @@ const formatSegmentDebugTooltipHtml = (segment, index) => {
     `Range: ${toKmSpan(segment)}`,
     `Distance: ${round(segment.distanceKm, 3)} km`,
     `Elevation: ${signed(segment.elevationDiff, 1)} m (${signed(segment.slopeRateMPerKm, 1)} m/km)`,
-    `Wind H/T/X/G: ${round(segment.headwindSpeed, 1)} / ${round(segment.tailwindSpeed, 1)} / ${round(segment.crosswindSpeed, 1)} / ${round(segment.gustDelta, 1)} m/s`,
-    `Points: base ${round(debug.baseEffort ?? 0, 2)} + terrain ${round(debug.terrainComponent ?? 0, 2)} + weather ${round(debug.weatherComponent ?? 0, 2)} - tailwind ${round(debug.tailwindRelief ?? 0, 2)} = ${round(segment.effort, 2)}`,
+    `Wind H/HC/TC/T/G: ${round(segment.headwindEffectiveSpeed, 1)} / ${round(segment.headCrosswindEffectiveSpeed, 1)} / ${round(segment.tailCrosswindEffectiveSpeed, 1)} / ${round(segment.tailwindEffectiveSpeed, 1)} / ${round(segment.gustDelta, 1)} m/s`,
+    `Points: base ${round(debug.baseEffort ?? 0, 2)} + terrain ${round(debug.terrainComponent ?? 0, 2)} + weather penalty ${round(debug.weatherPenaltyComponent ?? 0, 2)} - weather relief ${round(debug.weatherReliefComponent ?? 0, 2)} = ${round(segment.effort, 2)}`,
     `Norm E/G/W: ${toPercent(debug.normalizedEffort ?? 0)} / ${toPercent(debug.gradientDifficultyNorm ?? 0)} / ${toPercent(debug.windDifficultyNorm ?? 0)}`,
     `Weights E/G/W: ${toPercent(debug.effortWeight ?? 0)} / ${toPercent(debug.terrainWeight ?? 0)} / ${toPercent(debug.weatherWeight ?? 0)}`,
     `Score parts E/G/W: ${round(debug.effortContribution ?? 0, 2)} / ${round(debug.gradientContribution ?? 0, 2)} / ${round(debug.windContribution ?? 0, 2)}`,
     `Final score: ${toPercent(segment.normalizedEffort ?? 0)}`,
     `<span style="opacity:0.7;">---</span>`,
-    `Legend:<br/>H = Headwind, T = Tailwind, X = Crosswind, G = Gust (delta), E = Effort, G = Gradient, W = Wind`,
+    `Legend:<br/>H = Headwind, HC = Head crosswind, TC = Tail crosswind, T = Tailwind, G = Gust (delta), E = Effort, G = Gradient, W = Wind`,
   ];
   return `<div style="font-size:11px; line-height:1.35; min-width:${SEGMENT_DEBUG_TOOLTIP_MIN_WIDTH_PX}px; max-width:${SEGMENT_DEBUG_TOOLTIP_MAX_WIDTH_PX}px; white-space:normal;">${lines.join(
     "<br/>",
@@ -508,18 +510,61 @@ const parseWindFromInterpolatedValue = (value) => {
   };
 };
 
-const windComponentTowardRoute = (windDirectionFrom, routeBearing) => {
+const windComponentFromRoute = (windDirectionFrom, routeBearing) => {
   if (windDirectionFrom == null) {
-    return { headwind: 0, tailwind: 0, crosswind: 0 };
+    return {
+      headwind: 0,
+      headCrosswind: 0,
+      tailCrosswind: 0,
+      tailwind: 0,
+      angleFromRoute: 0,
+    };
   }
-  const windDirectionToward = normalizeDegrees(windDirectionFrom + 180);
-  const angle = angularDistance(routeBearing, windDirectionToward);
-  const radians = (angle * Math.PI) / 180;
-  const alignment = Math.cos(radians);
+
+  // Signed relative "from" angle where:
+  // 0 = straight ahead, +90 = from right, +/-180 = from behind.
+  // 220.5 degree offset because the circle starts at 0 degrees, and we need to offset it to point 'forward' in the correct direction.
+  const rawDelta = normalizeDegrees(windDirectionFrom - routeBearing + 220.5);
+  const angleFromRoute = rawDelta > 180 ? rawDelta - 360 : rawDelta;
+  const absoluteAngle = Math.abs(angleFromRoute);
+
+  // 360deg partition in 6 buckets:
+  // headwind (90deg), cross-headwind (45deg), cross-tailwind (45deg),
+  // tailwind (90deg), cross-tailwind (45deg), cross-headwind (45deg).
+  if (absoluteAngle <= 45) {
+    return {
+      headwind: 1,
+      headCrosswind: 0,
+      tailCrosswind: 0,
+      tailwind: 0,
+      angleFromRoute,
+    };
+  }
+  if (absoluteAngle <= 90) {
+    return {
+      headwind: 0,
+      headCrosswind: 1,
+      tailCrosswind: 0,
+      tailwind: 0,
+      angleFromRoute,
+    };
+  }
+  if (absoluteAngle <= 135) {
+    return {
+      headwind: 0,
+      headCrosswind: 0,
+      tailCrosswind: 1,
+      tailwind: 0,
+      angleFromRoute,
+    };
+  }
+  // Remaining angles are rear-aligned and treated as tailwind.
   return {
-    headwind: Math.max(0, -alignment),
-    tailwind: Math.max(0, alignment),
-    crosswind: Math.abs(Math.sin(radians)),
+    headwind: 0,
+    headCrosswind: 0,
+    tailCrosswind: 0,
+    tailwind: 1,
+    angleFromRoute,
   };
 };
 
@@ -1566,17 +1611,30 @@ class CyclingEffortController {
       }
       const windVector =
         weather.windDirectionFrom == null
-          ? { headwind: 0.45, tailwind: 0, crosswind: 0.35 }
-          : windComponentTowardRoute(weather.windDirectionFrom, routeBearing);
+          ? {
+              headwind: 0.45,
+              headCrosswind: 0.35,
+              tailCrosswind: 0,
+              tailwind: 0,
+              angleFromRoute: 0,
+            }
+          : windComponentFromRoute(weather.windDirectionFrom, routeBearing);
 
-      // Wind component labels from this provider are inverted for route-relative direction.
-      // Normalize them once so downstream names match the values they hold.
-      const headwindShare = windVector.tailwind;
-      const tailwindShare = windVector.headwind;
-      const headwindSpeed = headwindShare * weather.windSpeed;
-      const tailwindSpeed = tailwindShare * weather.windSpeed;
-      const crosswindSpeed = windVector.crosswind * weather.windSpeed;
+      const headwindSpeed = windVector.headwind * weather.windSpeed;
+      const headCrosswindSpeed = windVector.headCrosswind * weather.windSpeed;
+      const tailCrosswindSpeed = windVector.tailCrosswind * weather.windSpeed;
+      const tailwindSpeed = windVector.tailwind * weather.windSpeed;
       const gustDelta = Math.max(0, weather.gustSpeed - weather.windSpeed);
+      const headwindGustSpeed = windVector.headwind * gustDelta;
+      const headCrosswindGustSpeed = windVector.headCrosswind * gustDelta;
+      const tailCrosswindGustSpeed = windVector.tailCrosswind * gustDelta;
+      const tailwindGustSpeed = windVector.tailwind * gustDelta;
+      const headwindEffectiveSpeed = headwindSpeed + headwindGustSpeed;
+      const headCrosswindEffectiveSpeed =
+        headCrosswindSpeed + headCrosswindGustSpeed;
+      const tailCrosswindEffectiveSpeed =
+        tailCrosswindSpeed + tailCrosswindGustSpeed;
+      const tailwindEffectiveSpeed = tailwindSpeed + tailwindGustSpeed;
       // distanceKm is already in kilometers, so this is meters-per-kilometer.
       const slopeRateMPerKm = elevationDiff / Math.max(0.02, distanceKm);
 
@@ -1590,35 +1648,40 @@ class CyclingEffortController {
         baseEffort * SEGMENT_EFFORT_MODIFIERS.maxDownhillReliefShare;
       const downhillRelief = Math.min(downhillReliefRaw, maxDownhillRelief);
       const headwindEffort =
-        headwindSpeed *
+        headwindEffectiveSpeed *
         distanceKm *
         SEGMENT_EFFORT_MODIFIERS.headwindEffortPerMsPerKm;
-      const crosswindEffort =
-        crosswindSpeed *
+      const headCrosswindEffort =
+        headCrosswindEffectiveSpeed *
         distanceKm *
-        SEGMENT_EFFORT_MODIFIERS.crosswindEffortPerMsPerKm;
-      const gustEffort =
-        gustDelta * distanceKm * SEGMENT_EFFORT_MODIFIERS.gustEffortPerMsPerKm;
+        SEGMENT_EFFORT_MODIFIERS.headCrosswindEffortPerMsPerKm;
+      const tailCrosswindRelief =
+        tailCrosswindEffectiveSpeed *
+        distanceKm *
+        SEGMENT_EFFORT_MODIFIERS.tailCrosswindReliefPerMsPerKm;
       const terrainComponent =
         (climbEffort + descentPenalty - downhillRelief) * elevationScaling;
-      const weatherComponent =
-        (headwindEffort + crosswindEffort + gustEffort) * weatherScaling;
-      const subtotal = baseEffort + terrainComponent + weatherComponent;
-      const tailwindRelief = Math.min(
+      const weatherPenaltyComponent =
+        (headwindEffort + headCrosswindEffort) * weatherScaling;
+      const subtotal = baseEffort + terrainComponent + weatherPenaltyComponent;
+      const tailwindReliefRaw =
+        tailwindEffectiveSpeed *
+        distanceKm *
+        SEGMENT_EFFORT_MODIFIERS.tailwindReliefPerMsPerKm *
+        weatherScaling;
+      const tailCrosswindReliefScaled = tailCrosswindRelief * weatherScaling;
+      const weatherReliefComponent = Math.min(
         Math.max(0, subtotal) * SEGMENT_EFFORT_MODIFIERS.maxTailwindReliefShare,
-        tailwindSpeed *
-          distanceKm *
-          SEGMENT_EFFORT_MODIFIERS.tailwindReliefPerMsPerKm *
-          weatherScaling,
+        tailwindReliefRaw + tailCrosswindReliefScaled,
       );
       const effort = Math.max(
         baseEffort * SEGMENT_EFFORT_MODIFIERS.minEffortShareOfBase,
-        subtotal - tailwindRelief,
+        subtotal - weatherReliefComponent,
       );
 
       cumulativeKm += distanceKm;
       totalEffort += effort;
-      weatherImpact += weatherComponent - tailwindRelief;
+      weatherImpact += weatherPenaltyComponent - weatherReliefComponent;
       elevationImpact += terrainComponent;
 
       segments.push({
@@ -1629,20 +1692,26 @@ class CyclingEffortController {
         effort,
         cumulativeKm,
         headwindSpeed,
+        headCrosswindSpeed,
+        tailCrosswindSpeed,
         tailwindSpeed,
-        crosswindSpeed,
+        headwindEffectiveSpeed,
+        headCrosswindEffectiveSpeed,
+        tailCrosswindEffectiveSpeed,
+        tailwindEffectiveSpeed,
         gustDelta,
+        angleFromRoute: windVector.angleFromRoute,
         slopeRateMPerKm,
         baseEffort,
         climbEffort,
         descentPenalty,
         downhillRelief,
         headwindEffort,
-        crosswindEffort,
-        gustEffort,
+        headCrosswindEffort,
+        tailCrosswindRelief: tailCrosswindReliefScaled,
         terrainComponent,
-        weatherComponent,
-        tailwindRelief,
+        weatherPenaltyComponent,
+        weatherReliefComponent,
       });
     }
 
@@ -1679,16 +1748,20 @@ class CyclingEffortController {
         SEGMENT_NORMALIZATION_REFERENCES.downhillSlopeMPerKm,
       );
       const headwindNorm = normalizeToUnit(
-        segment.headwindSpeed,
+        segment.headwindEffectiveSpeed,
         SEGMENT_NORMALIZATION_REFERENCES.headwindSpeed,
       );
-      const tailwindNorm = normalizeToUnit(
-        segment.tailwindSpeed,
-        SEGMENT_NORMALIZATION_REFERENCES.tailwindSpeed,
+      const headCrosswindNorm = normalizeToUnit(
+        segment.headCrosswindEffectiveSpeed,
+        SEGMENT_NORMALIZATION_REFERENCES.headCrosswindSpeed,
       );
-      const crosswindNorm = normalizeToUnit(
-        segment.crosswindSpeed,
-        SEGMENT_NORMALIZATION_REFERENCES.crosswindSpeed,
+      const tailCrosswindNorm = normalizeToUnit(
+        segment.tailCrosswindEffectiveSpeed,
+        SEGMENT_NORMALIZATION_REFERENCES.tailCrosswindSpeed,
+      );
+      const tailwindNorm = normalizeToUnit(
+        segment.tailwindEffectiveSpeed,
+        SEGMENT_NORMALIZATION_REFERENCES.tailwindSpeed,
       );
       const gustNorm = normalizeToUnit(
         segment.gustDelta,
@@ -1703,18 +1776,21 @@ class CyclingEffortController {
       );
       const windDifficultyNorm = clamp(
         headwindNorm * SEGMENT_WIND_FACTORS.headwindDifficultyWeight +
-          crosswindNorm * SEGMENT_WIND_FACTORS.crosswindDifficultyWeight +
+          headCrosswindNorm *
+            SEGMENT_WIND_FACTORS.headCrosswindDifficultyWeight +
           gustNorm * SEGMENT_WIND_FACTORS.gustDifficultyWeight -
+          tailCrosswindNorm * SEGMENT_WIND_FACTORS.tailCrosswindReliefWeight -
           tailwindNorm * SEGMENT_WIND_FACTORS.tailwindReliefWeight,
         0,
         1,
       );
       const weatherMagnitudeNorm = clamp(
         (headwindNorm +
+          headCrosswindNorm * 0.8 +
+          tailCrosswindNorm * 0.35 +
           tailwindNorm * 0.45 +
-          crosswindNorm * 0.75 +
           gustNorm * 0.85) /
-          (1 + 0.45 + 0.75 + 0.85),
+          (1 + 0.8 + 0.35 + 0.45 + 0.85),
         0,
         1,
       );
@@ -1760,11 +1836,11 @@ class CyclingEffortController {
         descentPenalty: segment.descentPenalty,
         downhillRelief: segment.downhillRelief,
         headwindEffort: segment.headwindEffort,
-        crosswindEffort: segment.crosswindEffort,
-        gustEffort: segment.gustEffort,
+        headCrosswindEffort: segment.headCrosswindEffort,
+        tailCrosswindRelief: segment.tailCrosswindRelief,
         terrainComponent: segment.terrainComponent,
-        weatherComponent: segment.weatherComponent,
-        tailwindRelief: segment.tailwindRelief,
+        weatherPenaltyComponent: segment.weatherPenaltyComponent,
+        weatherReliefComponent: segment.weatherReliefComponent,
       };
     }
 
@@ -1793,10 +1869,12 @@ class CyclingEffortController {
       colorCounts,
       sampleSegments: segments.slice(0, 12).map((segment) => ({
         km: round(segment.distanceKm, 3),
-        headwind: round(segment.headwindSpeed, 2),
-        tailwind: round(segment.tailwindSpeed, 2),
-        crosswind: round(segment.crosswindSpeed, 2),
+        headwind: round(segment.headwindEffectiveSpeed, 2),
+        headCrosswind: round(segment.headCrosswindEffectiveSpeed, 2),
+        tailCrosswind: round(segment.tailCrosswindEffectiveSpeed, 2),
+        tailwind: round(segment.tailwindEffectiveSpeed, 2),
         gustDelta: round(segment.gustDelta, 2),
+        relativeWindAngle: round(segment.angleFromRoute, 1),
         slopeRateMPerKm: round(segment.slopeRateMPerKm, 1),
         climbDiff: round(segment.elevationDiff, 1),
         color: segment.color,
