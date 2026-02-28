@@ -53,7 +53,7 @@ const SEGMENT_WIND_FACTORS = Object.freeze({
 // Relative influence of effort intensity, mountain gradient and wind in final score.
 const SEGMENT_FINAL_SCORE_WEIGHTS = Object.freeze({
   effortIntensity: 0.24,
-  gradientDifficulty: 0.46,
+  gradientDifficulty: 0.4,
   windDifficulty: 0.3,
 });
 
@@ -77,6 +77,8 @@ const SEGMENT_COLOR_INTENSITY_MIX = Object.freeze({
   weather: 0.55,
   terrain: 0.45,
 });
+
+const ELEVATION_CACHE_STORAGE_KEY = "plugin-cycling-effort-elevation-cache";
 
 // How much the weather slider shifts terrain-vs-weather contribution in final score.
 const SEGMENT_WEIGHT_BLEND = Object.freeze({
@@ -738,6 +740,31 @@ const parseElevationPayload = (payload) => {
   return nested == null ? null : nested;
 };
 
+const loadElevationCache = () => {
+  try {
+    const raw = localStorage.getItem(ELEVATION_CACHE_STORAGE_KEY);
+    if (!raw) return new Map();
+    const obj = JSON.parse(raw);
+    if (obj && typeof obj === "object") {
+      return new Map(Object.entries(obj));
+    }
+    consoleLog("Restored local caches", "info");
+  } catch (_e) {
+    // Ignore parse errors or quota errors
+  }
+  return new Map();
+};
+
+const persistElevationCache = (controller) => {
+  try {
+    const obj = Object.fromEntries(controller.elevationCache);
+    localStorage.setItem(ELEVATION_CACHE_STORAGE_KEY, JSON.stringify(obj));
+    consoleLog("Persisted local caches", "info");
+  } catch (_e) {
+    // Ignore quota exceeded or other storage errors
+  }
+};
+
 const summarizeInterpolatedValue = (value) => {
   if (value == null) {
     return value;
@@ -799,18 +826,21 @@ class CyclingEffortController {
     this.recomputeInProgress = false;
     this.recomputeQueued = false;
     this.lastUploadRouteId = null;
-    this.elevationCache = new Map();
+    this.elevationCache = loadElevationCache();
     this.dimmedRouteLayers = new Map();
     this.layerMutationSuppressUntil = 0;
     this.lastExternalRouteMutationAt = 0;
     this.weatherSampleDebugCount = 0;
     this.weatherWeightPercent = WEATHER_WEIGHT_PERCENTAGE;
 
+    this.removeCaches = this.removeCaches.bind(this);
     this.onLayerMutation = this.onLayerMutation.bind(this);
     this.onWeatherMutation = this.onWeatherMutation.bind(this);
     this.onMapMoveFinished = this.onMapMoveFinished.bind(this);
     this.onBroadcastRqstOpen = this.onBroadcastRqstOpen.bind(this);
     this.onBroadcastPluginOpened = this.onBroadcastPluginOpened.bind(this);
+    this.onBroadcastRqstClose = this.onBroadcastRqstClose.bind(this);
+    this.onBroadcastPluginClosed = this.onBroadcastPluginClosed.bind(this);
     this.onBroadcastParamsChanged = this.onBroadcastParamsChanged.bind(this);
   }
 
@@ -907,6 +937,15 @@ class CyclingEffortController {
     return false;
   }
 
+  removeCaches() {
+    try {
+      consoleLog("Removing locally cached data", "info");
+      localStorage.removeItem(ELEVATION_CACHE_STORAGE_KEY);
+    } catch (_e) {
+      // Ignore storage errors
+    }
+  }
+
   onLayerMutation(evt) {
     const now = Date.now();
     const layer = evt?.layer;
@@ -953,6 +992,22 @@ class CyclingEffortController {
       return;
     }
     this.scheduleUploadDrivenRecompute("upload opened");
+  }
+
+  onBroadcastRqstClose(pluginName) {
+    if (pluginName !== "windy-plugin-cycling-effort") {
+      return;
+    }
+
+    this.removeCaches();
+  }
+
+  onBroadcastPluginClosed(pluginName) {
+    if (pluginName !== "windy-plugin-cycling-effort") {
+      return;
+    }
+
+    this.removeCaches();
   }
 
   onBroadcastParamsChanged(_params, changedParam) {
@@ -1012,6 +1067,8 @@ class CyclingEffortController {
     broadcast.on("redrawFinished", this.onWeatherMutation);
     broadcast.on("rqstOpen", this.onBroadcastRqstOpen);
     broadcast.on("pluginOpened", this.onBroadcastPluginOpened);
+    broadcast.on("rqstClose", this.onBroadcastRqstClose);
+    broadcast.on("pluginClosed", this.onBroadcastPluginClosed);
     broadcast.on("paramsChanged", this.onBroadcastParamsChanged);
     this.listenersBound = true;
   }
@@ -1030,6 +1087,8 @@ class CyclingEffortController {
     broadcast.off("redrawFinished", this.onWeatherMutation);
     broadcast.off("rqstOpen", this.onBroadcastRqstOpen);
     broadcast.off("pluginOpened", this.onBroadcastPluginOpened);
+    broadcast.off("rqstClose", this.onBroadcastRqstClose);
+    broadcast.off("pluginClosed", this.onBroadcastPluginClosed);
     broadcast.off("paramsChanged", this.onBroadcastParamsChanged);
     this.listenersBound = false;
     if (this.recomputeTimer != null) {
@@ -1357,14 +1416,16 @@ class CyclingEffortController {
   }
 
   async enrichMissingElevation(points) {
-    const withElevation = points.filter(
-      (point) => point.ele != null && point.ele !== 0,
-    ).length;
-    if (withElevation >= 2) {
-      return points;
-    }
+    // const withElevation = points.filter(
+    //   (point) => point.ele != null && point.ele !== 0,
+    // ).length;
+    // if (withElevation >= 2) {
+    //   // Do not get elevation from Windy DEM.
+    //   // Use the elevation data contained in the data of the GPX track.
+    //   return points;
+    // }
 
-    const indices = sampledIndices(points.length, 80);
+    const indices = sampledIndices(points.length, 100000);
     const samples = [];
 
     const fetchOne = async (idx) => {
@@ -1392,6 +1453,7 @@ class CyclingEffortController {
         samples.push({ idx, elevation });
       }
     }
+    persistElevationCache(this);
 
     if (samples.length < 2) {
       return points;
