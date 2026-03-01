@@ -40,3 +40,17 @@ npm run build
 2. Upload a GPX/KML/GeoJSON route using Windy's native upload feature.
 3. The plugin auto-detects the route, computes difficulty, and colors the route segments.
 4. Change forecast model/time in Windy UI and the score is recalculated automatically.
+
+## Wind Angle Debugger
+
+Use `wind-angle-debug.html` to experiment with wind direction vs route bearing and visualize the six buckets.
+
+Quick open:
+
+```zsh
+open wind-angle-debug.html
+```
+
+Notes:
+- Input can be degrees or radians.
+- The colored ring is aligned to the route bearing; arrows show route (blue) and wind-from (purple).
