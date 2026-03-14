@@ -96,7 +96,9 @@ const SEGMENT_COLOR_INTENSITY_MIX = Object.freeze({
 
 const ELEVATION_DB_NAME = "windy-plugin-cycling-effort-v1";
 const ELEVATION_STORE_NAME = "elevation";
+  const WEATHER_STORE_NAME = "weather";
 const ELEVATION_TTL_MS = 2 * 30 * 24 * 60 * 60 * 1000; // ~2 months
+const WEATHER_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 // How much the weather slider shifts terrain-vs-weather contribution in final score.
 const SEGMENT_WEIGHT_BLEND = Object.freeze({
@@ -606,16 +608,42 @@ const parseElevationPayload = (payload) => {
 
 const openElevationDB = () =>
   new Promise((resolve, reject) => {
-    const req = indexedDB.open(ELEVATION_DB_NAME, 1);
-    req.onupgradeneeded = () => {
+    const req = indexedDB.open(ELEVATION_DB_NAME, 3);
+    req.onupgradeneeded = (evt) => {
       const db = req.result;
+      const upgradeTx = evt.target.transaction;
       if (!db.objectStoreNames.contains(ELEVATION_STORE_NAME)) {
-        db.createObjectStore(ELEVATION_STORE_NAME, { keyPath: "key" });
+        db.createObjectStore(ELEVATION_STORE_NAME, { keyPath: "key" })
+          .createIndex("storedAt", "storedAt");
+      } else if (evt.oldVersion < 3) {
+        upgradeTx.objectStore(ELEVATION_STORE_NAME).createIndex("storedAt", "storedAt");
+      }
+      if (!db.objectStoreNames.contains(WEATHER_STORE_NAME)) {
+        db.createObjectStore(WEATHER_STORE_NAME, { keyPath: "key" })
+          .createIndex("storedAt", "storedAt");
+      } else if (evt.oldVersion < 3) {
+        upgradeTx.objectStore(WEATHER_STORE_NAME).createIndex("storedAt", "storedAt");
       }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
+
+const cleanStaleRows = (db, storeName, ttlMs) => {
+  try {
+    const cutoff = Date.now() - ttlMs;
+    const tx = db.transaction(storeName, "readwrite");
+    const req = tx.objectStore(storeName).index("storedAt").openCursor(IDBKeyRange.upperBound(cutoff));
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (!cursor) return;
+      cursor.delete();
+      cursor.continue();
+    };
+  } catch (_e) {
+    // Ignore errors during cleanup
+  }
+};
 
 const getElevationFromDB = (db, key) =>
   new Promise((resolve) => {
@@ -643,10 +671,37 @@ const putElevationInDB = (db, key, value) => {
   }
 };
 
+const getWeatherFromDB = (db, key) =>
+  new Promise((resolve) => {
+    const req = db
+      .transaction(WEATHER_STORE_NAME, "readonly")
+      .objectStore(WEATHER_STORE_NAME)
+      .get(key);
+    req.onsuccess = () => {
+      const row = req.result;
+      if (!row) return resolve(null);
+      if (Date.now() - row.storedAt > WEATHER_TTL_MS) return resolve(null);
+      resolve(row.value);
+    };
+    req.onerror = () => resolve(null);
+  });
+
+const putWeatherInDB = (db, key, value) => {
+  try {
+    db
+      .transaction(WEATHER_STORE_NAME, "readwrite")
+      .objectStore(WEATHER_STORE_NAME)
+      .put({ key, value, storedAt: Date.now() });
+  } catch (_e) {
+    // Ignore storage errors
+  }
+};
+
 const clearElevationDB = async (db) => {
   try {
-    const tx = db.transaction(ELEVATION_STORE_NAME, "readwrite");
+    const tx = db.transaction([ELEVATION_STORE_NAME, WEATHER_STORE_NAME], "readwrite");
     tx.objectStore(ELEVATION_STORE_NAME).clear();
+    tx.objectStore(WEATHER_STORE_NAME).clear();
     await new Promise((resolve, reject) => {
       tx.oncomplete = resolve;
       tx.onerror = () => reject(tx.error);
@@ -715,7 +770,11 @@ class CyclingEffortController {
     this.recomputeQueued = false;
     this.hasRenderedSegments = false;
     this.lastUploadRouteId = null;
-    this.elevationDB = openElevationDB().catch(() => null);
+    this.elevationDB = openElevationDB().then((db) => {
+      cleanStaleRows(db, ELEVATION_STORE_NAME, ELEVATION_TTL_MS);
+      cleanStaleRows(db, WEATHER_STORE_NAME, WEATHER_TTL_MS);
+      return db;
+    }).catch(() => null);
     this.dimmedRouteLayers = new Map();
     this.layerMutationSuppressUntil = 0;
     this.lastExternalRouteMutationAt = 0;
@@ -1223,6 +1282,7 @@ class CyclingEffortController {
   async fetchAccurateWindForPoints(points) {
     const model = safeStoreGet("product") ?? safeStoreGet("preferredProduct") ?? "ecmwf";
     const targetTimestamp = safeStoreGet("timestamp");
+    const db = await this.elevationDB;
     let routeLengthKm = 0;
     for (let i = 1; i < points.length; i += 1) {
       routeLengthKm += haversineDistanceKm(points[i - 1], points[i]);
@@ -1236,7 +1296,15 @@ class CyclingEffortController {
       await Promise.allSettled(
         batch.map(async (idx) => {
           const point = points[idx];
-          const key = `${round(point.lat, 4)},${round(point.lon, 4)}`;
+          const locKey = `${round(point.lat, 4)},${round(point.lon, 4)}`;
+          const dbKey = `${model},${locKey},${targetTimestamp}`;
+          if (db) {
+            const cached = await getWeatherFromDB(db, dbKey);
+            if (cached != null) {
+              windMap.set(locKey, cached);
+              return;
+            }
+          }
           try {
             const httpPayload = await getPointForecastData(model, {
               lat: point.lat,
@@ -1245,7 +1313,8 @@ class CyclingEffortController {
             });
             const wind = this.parseWindFromForecastPayload(httpPayload, targetTimestamp);
             if (wind != null) {
-              windMap.set(key, wind);
+              windMap.set(locKey, wind);
+              if (db) putWeatherInDB(db, dbKey, wind);
             }
           } catch (_error) {
             // Ignore failed fetches; sampler will fall back to zero wind for this point.
