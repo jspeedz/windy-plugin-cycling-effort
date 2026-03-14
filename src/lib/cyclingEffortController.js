@@ -94,7 +94,7 @@ const SEGMENT_COLOR_INTENSITY_MIX = Object.freeze({
   terrain: 0.3,
 });
 
-const ELEVATION_CACHE_STORAGE_KEY = "plugin-cycling-effort-elevation-cache";
+const ELEVATION_CACHE_STORAGE_KEY = "plugin-cycling-effort-v1-elevation-cache";
 
 // How much the weather slider shifts terrain-vs-weather contribution in final score.
 const SEGMENT_WEIGHT_BLEND = Object.freeze({
