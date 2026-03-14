@@ -76,3 +76,5 @@ Notes:
 - https://docs.windy-plugins.com/api/interfaces/broadcast.BasicBcastTypes.html
 - https://docs.windy-plugins.com/api/modules/interpolator.html
 - https://docs.windy-plugins.com/api/modules/fetch.html
+- Icons: https://docs.windy-plugins.com/styles/section-icons.html
+- Icons list: https://docs.windy-plugins.com/styles/iconfont/demo.html

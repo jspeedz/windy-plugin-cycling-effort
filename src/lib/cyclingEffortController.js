@@ -692,6 +692,7 @@ class CyclingEffortController {
     this.lastExternalRouteMutationAt = 0;
     this.weatherSampleDebugCount = 0;
     this.weatherWeightPercent = WEATHER_WEIGHT_PERCENTAGE;
+    this.isRouteInverted = false;
 
     this.removeCaches = this.removeCaches.bind(this);
     this.onLayerMutation = this.onLayerMutation.bind(this);
@@ -731,6 +732,11 @@ class CyclingEffortController {
     this.scheduleRecompute("weight changed");
   }
 
+  invertRoute() {
+    this.isRouteInverted = !this.isRouteInverted;
+    patchUiState({ isRouteInverted: this.isRouteInverted });
+    this.scheduleRecompute("route inverted");
+  }
 
   close() {
     this.unbindListeners();
@@ -2021,8 +2027,11 @@ class CyclingEffortController {
         hasElevation: chosen.hasElevation,
       });
       this.dimOriginalRouteLayer(chosen.sourceLayer);
+      const routePoints = this.isRouteInverted
+        ? [...chosen.points].reverse()
+        : chosen.points;
       const computePoints = downsamplePoints(
-        chosen.points,
+        routePoints,
         MAX_POINTS_FOR_COMPUTE,
       );
       if (!this.hasRenderedSegments) {

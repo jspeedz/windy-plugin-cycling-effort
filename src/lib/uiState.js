@@ -18,6 +18,7 @@ export const defaultUiState = {
     weatherWeightPercent: 75,
     candidateCount: 0,
     computedAt: '',
+    isRouteInverted: false,
 };
 
 export const uiState = writable({ ...defaultUiState });

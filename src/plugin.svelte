@@ -11,6 +11,8 @@
     import { effortLegendGradient } from './lib/cyclingEffortController';
     import { uiState } from './lib/uiState';
 
+    const handleInvertRoute = () => controller.invertRoute();
+
     $: legendGradient = effortLegendGradient($uiState.weatherWeightPercent ?? 75);
     const GRAPH_WIDTH = 340;
     const GRAPH_HEIGHT = 120;
@@ -151,6 +153,17 @@
                     <span><span class="iconfont"></span> {$uiState.distanceKm} km</span>
                     <span><span class="iconfont">3</span> {$uiState.ascentM} m</span>
                     <span><span class="iconfont">4</span> {$uiState.descentM} m</span>
+                    <button
+                            class="invert-route-btn"
+                            on:click={handleInvertRoute}
+                            title="Invert route"
+                    >
+                        {#if $uiState.isRouteInverted}
+                            <span class="iconfont">I</span>
+                        {:else}
+                            <span class="iconfont">G</span>
+                        {/if}
+                    </button>
                 </div>
             {:else}
                 <div class="graph-empty size-xs">Elevation profile unavailable for this route.</div>
@@ -206,42 +219,43 @@
 </div>
 
 <style>
+    /* Style variables are used from the windy parent page */
     :global(#plugin-rhbottom .cycling-panel .stats-grid) {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
-    .title-row {
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-        align-items: flex-start;
-    }
+    /*.title-row {*/
+    /*    display: flex;*/
+    /*    justify-content: space-between;*/
+    /*    gap: 10px;*/
+    /*    align-items: flex-start;*/
+    /*}*/
 
 
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 4px;
-    }
+    /*.stats-grid {*/
+    /*    display: grid;*/
+    /*    grid-template-columns: repeat(2, minmax(0, 1fr));*/
+    /*    gap: 4px;*/
+    /*}*/
 
-    .stats-grid article {
-        padding: 7px 8px;
-        display: grid;
-        gap: 2px;
-    }
+    /*.stats-grid article {*/
+    /*    padding: 7px 8px;*/
+    /*    display: grid;*/
+    /*    gap: 2px;*/
+    /*}*/
 
-    .computed-at {
-        margin: 0;
-        font-size: 11px;
-        color: #526779;
-    }
+    /*.computed-at {*/
+    /*    margin: 0;*/
+    /*    font-size: 11px;*/
+    /*    color: #526779;*/
+    /*}*/
 
     .route-graph-box {
         position: relative;
         border-radius: 10px;
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        background: rgba(7, 16, 26, 0.45);
-        padding: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: var(--color-background-primary);
+        padding: 4px;
     }
 
     .route-graph {
@@ -279,15 +293,15 @@
     }
 
     .axis-text {
-        fill: rgba(255, 255, 255, 0.82);
+        fill: var(--color-white);
         font-size: 9px;
     }
 
-    .axis-title {
-        fill: rgba(255, 255, 255, 0.88);
-        font-size: 10px;
-        font-weight: 600;
-    }
+    /*.axis-title {*/
+    /*    fill: var(--color-white);*/
+    /*    font-size: 10px;*/
+    /*    font-weight: 600;*/
+    /*}*/
 
     .graph-info {
         display: flex;
@@ -296,7 +310,7 @@
         gap: 5px;
         margin-top: 2px;
         margin-left: 18px;
-        color: rgba(255, 255, 255, 0.82);
+        color: var(--color-white);
         font-size: 8px;
         line-height: 1.1;
     }
@@ -306,9 +320,24 @@
     }
 
     .graph-empty {
-        color: rgba(255, 255, 255, 0.82);
+        color: var(--color-white);
         padding: 8px 4px;
     }
 
+    .invert-route-btn {
+        background: none;
+        border: none;
+        color: var(--color-yellow);
+        cursor: pointer;
+        padding: 0 2px;
+        font-size: 16px;
+        line-height: 1;
+        opacity: 0.8;
+        margin-left: auto;
+    }
 
+    .invert-route-btn:hover {
+        opacity: 1;
+        color: #fff;
+    }
 </style>
