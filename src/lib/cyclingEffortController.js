@@ -2137,13 +2137,12 @@ class CyclingEffortController {
         status: null,
       });
     } finally {
-      patchUiState({
-        isComputing: false,
-      });
       this.recomputeInProgress = false;
       if (this.recomputeQueued) {
         this.recomputeQueued = false;
         this.scheduleRecompute("queued update");
+      } else {
+        patchUiState({ isComputing: false });
       }
     }
   }
