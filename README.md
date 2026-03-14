@@ -7,7 +7,21 @@ Factors affecting effort which are evaluated:
 - Elevation profile (ascent/descent)
 - Wind speed, gust speed, and wind direction relative to route direction based on the current selected windy.com weather model weather predictions.
 
-It visualizes per-segment difficulty directly on map (green = easier, red = harder) and shows one total effort score in the plugin panel.
+It visualizes per-segment difficulty directly on map (green = easier, red = harder) and shows one total effort score in the plugin panel with which it should be easy to compare weather conditions and find the ideal time to go out cycling.
+
+## Route segment / graph colours representing 'effort' / 'difficulty'
+
+The segments of the route, and the colours in the graph range from green (easy) to red (difficult) to visualize effort along the route.
+These are the rules:
+
+Slow wind has low impact, high windspeed has high impact.
+Tailwind makes cycling progressively more easy the higher the wind/gust speeds go.
+Headwind does the opposite, makes cycling progressively more difficult the higher wind/gust speeds go.
+So: The faster the wind/gust speeds, the easier and respectively more difficult the effort gets.
+
+Going up or downhill always has the same impact regardless of weather.
+
+And thus colours should reflect this by using the entire range going from dark to light green, light to dark yellow, light to dark orange, light to dark red. The center point should be no wind/gust or elevation change at all.
 
 ## Requirements
 

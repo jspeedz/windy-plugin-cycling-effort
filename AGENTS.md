@@ -1,5 +1,7 @@
 # AI Agent Guide
 
+@README.md
+
 ## Project summary
 - Windy.com plugin that scores cycling routes by combining elevation and wind effects.
 - UI is Svelte; logic lives in a single controller.
