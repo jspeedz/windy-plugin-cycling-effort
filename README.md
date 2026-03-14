@@ -1,10 +1,11 @@
 # Windy Cycling Effort Plugin
 
-Windy.com plugin that evaluates cycling route difficulty for uploaded GPX/KML/GeoJSON tracks by combining:
+Windy.com plugin that evaluates cycling trip effort/difficulty for uploaded GPX/KML/GeoJSON route tracks.
 
+Factors affecting effort which are evaluated:
 - Route length
 - Elevation profile (ascent/descent)
-- Wind speed, gust speed, and wind direction relative to route direction
+- Wind speed, gust speed, and wind direction relative to route direction based on the current selected windy.com weather model weather predictions.
 
 It visualizes per-segment difficulty directly on map (green = easier, red = harder) and shows one total effort score in the plugin panel.
 
@@ -54,3 +55,9 @@ open wind-angle-debug.html
 Notes:
 - Input can be degrees or radians.
 - The colored ring is aligned to the route bearing; arrows show route (blue) and wind-from (purple).
+
+## Documentation sources
+
+- https://docs.windy-plugins.com/api/interfaces/broadcast.BasicBcastTypes.html
+- https://docs.windy-plugins.com/api/modules/interpolator.html
+- https://docs.windy-plugins.com/api/modules/fetch.html

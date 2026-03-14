@@ -191,6 +191,17 @@
         </section>
     {/if}
 
+    <section class="accurate-wind-toggle mt-5">
+        <label class="size-xs fg-gray-light accurate-wind-label">
+            <input
+                type="checkbox"
+                checked={$uiState.accurateWindMode}
+                on:change={(e) => controller.setAccurateWindMode(e.target.checked)}
+            />
+            Accurate wind (slower, uses forecast API)
+        </label>
+    </section>
+
     {#if $uiState.status}
         <p class="status fg-gray-light size-xs">{$uiState.status}</p>
     {/if}
@@ -308,5 +319,18 @@
     .graph-empty {
         color: rgba(255, 255, 255, 0.82);
         padding: 8px 4px;
+    }
+
+    .accurate-wind-toggle {
+        display: flex;
+        align-items: center;
+    }
+
+    .accurate-wind-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        user-select: none;
     }
 </style>

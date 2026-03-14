@@ -1,15 +1,30 @@
 import broadcast from "@windy/broadcast";
-import { getElevation } from "@windy/fetch";
+import { getElevation, getPointForecastData } from "@windy/fetch";
 import interpolator from "@windy/interpolator";
 import { map } from "@windy/map";
 import store from "@windy/store";
 
+
+// @todo-wim windDirectionFrom: klopt niet soms, soms gezien als tailwind terwijl dat het niet is:
+// "Heading/Wind(from): 217° / 175°"
+// "Wind H/HC/TC/T/G: 0 / 0 / 0 / 5 / 0 m/s"
+
+// Soms lijkt de wind direction gewoon totaal niet te kloppen
+// Check waar windDirectionFrom vandaan komt, en check of ie wel goeie data pakt!
+
+//"Heading/Wind(from): 223° / 2°"
+//"Wind H/HC/TC/T/G: 7.3 / 0 / 0 / 0 / 0 m/s"
+
 import { patchUiState, resetUiState } from "./uiState";
+import { normalizeDegrees, windComponentFromRoute } from "./windMath";
 
 const OVERLAY_CLASS = "cycling-effort-overlay";
 const MAX_POINTS_FOR_COMPUTE = 500;
 // How heavy does the weather count towards effort relative to elevation change?
 const WEATHER_WEIGHT_PERCENTAGE = 75;
+// How many samples/api calls do we do as a maximum?
+// 10 samples/km = 1 sample every 100 metres.
+const MAX_ACCURATE_WIND_SAMPLES_PER_KM = 5;
 const MIN_TRACK_KM = 0.08;
 const DEBUG_LOGS = true;
 const LOG_PREFIX = "🚴 [plugin-cycling-effort]";
@@ -112,7 +127,7 @@ const SEGMENT_WIND_COLOR_CALIBRATION = Object.freeze({
 const ENABLE_SEGMENT_DEBUG_TOOLTIP = true;
 const SHOW_SEGMENT_DEBUG_TOOLTIPS = ENABLE_SEGMENT_DEBUG_TOOLTIP;
 const SEGMENT_DEBUG_CONSOLE_LOG_DEBOUNCE_MS = 250;
-const SEGMENT_DEBUG_TOOLTIP_MIN_WIDTH_PX = 500;
+const SEGMENT_DEBUG_TOOLTIP_MIN_WIDTH_PX = 700;
 const SEGMENT_DEBUG_TOOLTIP_MAX_WIDTH_PX = 1320;
 const SEGMENT_DEBUG_POPUP_OPTIONS = Object.freeze({
   closeButton: false,
@@ -199,10 +214,6 @@ const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const normalizeToUnit = (value, reference) =>
   clamp(value / Math.max(1e-6, reference), 0, 1);
 
-const normalizeDegrees = (degrees) => {
-  const normalized = degrees % 360;
-  return normalized < 0 ? normalized + 360 : normalized;
-};
 
 const angularDistance = (a, b) => {
   const raw = Math.abs(a - b) % 360;
@@ -264,38 +275,34 @@ const toKmSpan = (segment) =>
 
 const formatSegmentDebugTooltipHtml = (segment, index) => {
   const debug = segment.debug ?? {};
+  const windDirectionLabel =
+    segment.windDirectionFrom == null
+      ? "n/a"
+      : `${round(segment.windDirectionFrom, 0)}°`;
+  const headingLabel =
+    segment.routeBearing == null ? "n/a" : `${round(segment.routeBearing, 0)}°`;
   const lines = [
     `<strong>Segment ${index + 1}</strong>`,
     `Range: ${toKmSpan(segment)}`,
     `Distance: ${round(segment.distanceKm, 3)} km`,
     `Elevation: ${signed(segment.elevationDiff, 1)} m (${signed(segment.slopeRateMPerKm, 1)} m/km)`,
-    `Wind H/HC/TC/T/G: ${round(segment.headwindEffectiveSpeed, 1)} / ${round(segment.headCrosswindEffectiveSpeed, 1)} / ${round(segment.tailCrosswindEffectiveSpeed, 1)} / ${round(segment.tailwindEffectiveSpeed, 1)} / ${round(segment.gustDelta, 1)} m/s`,
+    `Cycling heading/ Wind(from-direction): ${headingLabel} / ${windDirectionLabel}`,
+    `Wind Head/Hcross/Tcross/Tail/Gusts: ${round(segment.headwindEffectiveSpeed, 1)} / ${round(segment.headCrosswindEffectiveSpeed, 1)} / ${round(segment.tailCrosswindEffectiveSpeed, 1)} / ${round(segment.tailwindEffectiveSpeed, 1)} / ${round(segment.gustDelta, 1)} m/s`,
     `Points: base ${round(debug.baseEffort ?? 0, 2)} + terrain ${round(debug.terrainComponent ?? 0, 2)} + weather penalty ${round(debug.weatherPenaltyComponent ?? 0, 2)} - weather relief ${round(debug.weatherReliefComponent ?? 0, 2)} = ${round(segment.effort, 2)}`,
-    `Norm E/G/W: ${toPercent(debug.normalizedEffort ?? 0)} / ${toPercent(debug.gradientDifficultyNorm ?? 0)} / ${toPercent(debug.windDifficultyNorm ?? 0)}`,
-    `Weights E/G/W: ${toPercent(debug.effortWeight ?? 0)} / ${toPercent(debug.terrainWeight ?? 0)} / ${toPercent(debug.weatherWeight ?? 0)}`,
-    `Score parts E/G/W: ${round(debug.effortContribution ?? 0, 2)} / ${round(debug.gradientContribution ?? 0, 2)} / ${round(debug.windContribution ?? 0, 2)}`,
+    `Normalized effort effort/gradient/wind: ${toPercent(debug.normalizedEffort ?? 0)} / ${toPercent(debug.gradientDifficultyNorm ?? 0)} / ${toPercent(debug.windDifficultyNorm ?? 0)}`,
+    `Weights effort/gradient/wind: ${toPercent(debug.effortWeight ?? 0)} / ${toPercent(debug.terrainWeight ?? 0)} / ${toPercent(debug.weatherWeight ?? 0)}`,
+    `Contribution parts effort/gradient/wind: ${round(debug.effortContribution ?? 0, 2)} / ${round(debug.gradientContribution ?? 0, 2)} / ${round(debug.windContribution ?? 0, 2)}`,
     `Final score: ${toPercent(segment.normalizedEffort ?? 0)}`,
     `<span style="opacity:0.7;">---</span>`,
-    `Legend:<br/>H = Headwind, HC = Head crosswind, TC = Tail crosswind, T = Tailwind, G = Gust (delta), E = Effort, G = Gradient, W = Wind`,
+    `Legend:<br/>H = Headwind, HC = Head crosswind<br/>TC = Tail crosswind, T = Tailwind<br/>G = Gust (delta), E = Effort, G = Gradient, W = Wind`,
   ];
+
+  console.log("[cycling-effort] Segment debug tooltip data", lines);
+
   return `<div style="font-size:11px; line-height:1.35; min-width:${SEGMENT_DEBUG_TOOLTIP_MIN_WIDTH_PX}px; max-width:${SEGMENT_DEBUG_TOOLTIP_MAX_WIDTH_PX}px; white-space:normal;">${lines.join(
     "<br/>",
   )}</div>`;
 };
-
-const buildSegmentDebugConsolePayload = (segment, index, latlng) => ({
-  segmentNumber: index + 1,
-  latlng: {
-    lat: safeNumber(latlng?.lat) ?? null,
-    lng:
-      safeNumber(latlng?.lng) ??
-      safeNumber(latlng?.lon) ??
-      safeNumber(latlng?.longitude) ??
-      null,
-  },
-  segment: segment,
-  debug: segment?.debug ?? {},
-});
 
 const blendedDomainWeights = (
   weatherWeightPercent = WEATHER_WEIGHT_PERCENTAGE,
@@ -535,63 +542,6 @@ const parseWindFromInterpolatedValue = (value) => {
   };
 };
 
-const windComponentFromRoute = (windDirectionFrom, routeBearing) => {
-  if (windDirectionFrom == null) {
-    return {
-      headwind: 0,
-      headCrosswind: 0,
-      tailCrosswind: 0,
-      tailwind: 0,
-      angleFromRoute: 0,
-    };
-  }
-
-  // Signed relative "from" angle where:
-  // 0 = straight ahead, +90 = from right, +/-180 = from behind.
-  // 220.5 degree offset because the circle starts at 0 degrees, and we need to offset it to point 'forward' in the correct direction.
-  const rawDelta = normalizeDegrees(windDirectionFrom - routeBearing + 220.5);
-  const angleFromRoute = rawDelta > 180 ? rawDelta - 360 : rawDelta;
-  const absoluteAngle = Math.abs(angleFromRoute);
-
-  // 360deg partition in 6 buckets:
-  // headwind (90deg), cross-headwind (45deg), cross-tailwind (45deg),
-  // tailwind (90deg), cross-tailwind (45deg), cross-headwind (45deg).
-  if (absoluteAngle <= 45) {
-    return {
-      headwind: 1,
-      headCrosswind: 0,
-      tailCrosswind: 0,
-      tailwind: 0,
-      angleFromRoute,
-    };
-  }
-  if (absoluteAngle <= 90) {
-    return {
-      headwind: 0,
-      headCrosswind: 1,
-      tailCrosswind: 0,
-      tailwind: 0,
-      angleFromRoute,
-    };
-  }
-  if (absoluteAngle <= 135) {
-    return {
-      headwind: 0,
-      headCrosswind: 0,
-      tailCrosswind: 1,
-      tailwind: 0,
-      angleFromRoute,
-    };
-  }
-  // Remaining angles are rear-aligned and treated as tailwind.
-  return {
-    headwind: 0,
-    headCrosswind: 0,
-    tailCrosswind: 0,
-    tailwind: 1,
-    angleFromRoute,
-  };
-};
 
 const flattenLatLngArray = (latLngs, output = []) => {
   if (!Array.isArray(latLngs)) {
@@ -902,6 +852,7 @@ class CyclingEffortController {
     this.lastExternalRouteMutationAt = 0;
     this.weatherSampleDebugCount = 0;
     this.weatherWeightPercent = WEATHER_WEIGHT_PERCENTAGE;
+    this.accurateWindMode = false;
 
     this.removeCaches = this.removeCaches.bind(this);
     this.onLayerMutation = this.onLayerMutation.bind(this);
@@ -916,14 +867,14 @@ class CyclingEffortController {
 
   mount() {
     this.movePanelToEmbeddedContainer();
-    patchUiState({ weatherWeightPercent: this.weatherWeightPercent });
+    patchUiState({ weatherWeightPercent: this.weatherWeightPercent, accurateWindMode: this.accurateWindMode });
     this.bindListeners();
     this.scheduleRecompute("plugin mounted");
   }
 
   open() {
     this.movePanelToEmbeddedContainer();
-    patchUiState({ weatherWeightPercent: this.weatherWeightPercent });
+    patchUiState({ weatherWeightPercent: this.weatherWeightPercent, accurateWindMode: this.accurateWindMode });
     this.bindListeners();
     this.scheduleRecompute("plugin opened");
   }
@@ -940,6 +891,16 @@ class CyclingEffortController {
     this.weatherWeightPercent = clampedValue;
     patchUiState({ weatherWeightPercent: clampedValue });
     this.scheduleRecompute("weight changed");
+  }
+
+  setAccurateWindMode(enabled) {
+    const value = Boolean(enabled);
+    if (value === this.accurateWindMode) {
+      return;
+    }
+    this.accurateWindMode = value;
+    patchUiState({ accurateWindMode: value });
+    this.scheduleRecompute("accurate wind mode changed");
   }
 
   close() {
@@ -1365,7 +1326,114 @@ class CyclingEffortController {
     }
   }
 
-  async createWeatherSampler() {
+  parseWindFromForecastPayload(httpPayload, targetTimestamp) {
+    const forecastData = httpPayload?.data?.data;
+    if (!forecastData) {
+      return null;
+    }
+    const timestamps = forecastData.ts;
+    const windSpeeds = forecastData.wind;
+    const windDirs = forecastData.windDir;
+    const gusts = forecastData.gust;
+    if (!Array.isArray(timestamps) || !Array.isArray(windSpeeds) || timestamps.length === 0) {
+      return null;
+    }
+    const target =
+      targetTimestamp == null
+        ? null
+        : targetTimestamp > 1e12
+          ? targetTimestamp
+          : targetTimestamp * 1000;
+    let bestIdx = 0;
+    if (target != null) {
+      let bestDiff = Infinity;
+      for (let i = 0; i < timestamps.length; i += 1) {
+        const ts = timestamps[i] > 1e12 ? timestamps[i] : timestamps[i] * 1000;
+        const diff = Math.abs(ts - target);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestIdx = i;
+        }
+      }
+    }
+    const windSpeed = safeNumber(windSpeeds[bestIdx]);
+    if (windSpeed == null) {
+      return null;
+    }
+    const windDir = Array.isArray(windDirs) ? safeNumber(windDirs[bestIdx]) : null;
+    const gustSpeed = Array.isArray(gusts) ? safeNumber(gusts[bestIdx]) : null;
+    return {
+      windSpeed: Math.max(0, windSpeed),
+      windDirectionFrom: windDir != null ? normalizeDegrees(windDir) : null,
+      gustSpeed: Math.max(0, gustSpeed ?? windSpeed),
+    };
+  }
+
+  async fetchAccurateWindForPoints(points) {
+    const model = safeStoreGet("product") ?? safeStoreGet("preferredProduct") ?? "ecmwf";
+    const targetTimestamp = safeStoreGet("timestamp");
+    let routeLengthKm = 0;
+    for (let i = 1; i < points.length; i += 1) {
+      routeLengthKm += haversineDistanceKm(points[i - 1], points[i]);
+    }
+    const maxWindSamples = Math.max(1, Math.round(MAX_ACCURATE_WIND_SAMPLES_PER_KM * routeLengthKm));
+    const indices = sampledIndices(points.length, maxWindSamples);
+    const windMap = new Map();
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < indices.length; i += BATCH_SIZE) {
+      const batch = indices.slice(i, i + BATCH_SIZE);
+      await Promise.allSettled(
+        batch.map(async (idx) => {
+          const point = points[idx];
+          const key = `${round(point.lat, 4)},${round(point.lon, 4)}`;
+          try {
+            const httpPayload = await getPointForecastData(model, {
+              lat: point.lat,
+              lon: point.lon,
+              interpolate: true,
+            });
+            const wind = this.parseWindFromForecastPayload(httpPayload, targetTimestamp);
+            if (wind != null) {
+              windMap.set(key, wind);
+            }
+          } catch (_error) {
+            // Ignore failed fetches; sampler will fall back to zero wind for this point.
+          }
+        }),
+      );
+    }
+    consoleLog("fetchAccurateWindForPoints", "info", {
+      requested: indices.length,
+      received: windMap.size,
+      model,
+    });
+    return windMap;
+  }
+
+  async createWeatherSampler(accurateWindData = null) {
+    if (accurateWindData != null && accurateWindData.size > 0) {
+      const entries = [...accurateWindData.entries()].map(([key, wind]) => {
+        const commaIdx = key.indexOf(",");
+        return {
+          lat: parseFloat(key.slice(0, commaIdx)),
+          lon: parseFloat(key.slice(commaIdx + 1)),
+          wind,
+        };
+      });
+      return (lat, lon) => {
+        let best = null;
+        let bestDist = Infinity;
+        for (const entry of entries) {
+          const dist = Math.hypot(entry.lat - lat, entry.lon - lon);
+          if (dist < bestDist) {
+            bestDist = dist;
+            best = entry.wind;
+          }
+        }
+        return Promise.resolve(best ?? { windSpeed: 0, windDirectionFrom: null, gustSpeed: 0 });
+      };
+    }
+
     const interpolateCoords =
       typeof interpolator.getLatLonInterpolator === "function"
         ? await interpolator.getLatLonInterpolator()
@@ -1601,7 +1669,14 @@ class CyclingEffortController {
       (count, point) => count + (point.ele != null ? 1 : 0),
       0,
     );
-    const sampleWeather = await this.createWeatherSampler();
+    let accurateWindData = null;
+    if (this.accurateWindMode) {
+      patchUiState({ status: "Fetching accurate wind data…" });
+      accurateWindData = await this.fetchAccurateWindForPoints(pointsWithElevation);
+    }
+    const sampleWeather = await this.createWeatherSampler(
+      accurateWindData != null && accurateWindData.size > 0 ? accurateWindData : null,
+    );
     const weatherWeight = clamp(this.weatherWeightPercent / 100, 0, 1);
     const elevationWeight = 1 - weatherWeight;
     const weatherScaling =
@@ -1631,9 +1706,11 @@ class CyclingEffortController {
       const routeBearing = bearingBetween(start, end);
       const midPoint = midpointBetween(start, end);
       const weather = await sampleWeather(midPoint.lat, midPoint.lon);
+
       if (weather.windSpeed > 0 || weather.gustSpeed > 0) {
         windSampleCount += 1;
       }
+
       const windVector =
         weather.windDirectionFrom == null
           ? {
@@ -1738,6 +1815,7 @@ class CyclingEffortController {
         weatherPenaltyComponent,
         weatherReliefComponent,
         windDirectionFrom: weather.windDirectionFrom,
+        routeBearing,
       });
     }
 
@@ -2069,12 +2147,6 @@ class CyclingEffortController {
       }
       const content = formatSegmentDebugTooltipHtml(segment, index);
       this.segmentDebugPopup.setLatLng(latlng).setContent(content).openOn(map);
-      const debugPayload = buildSegmentDebugConsolePayload(
-        segment,
-        index,
-        latlng,
-      );
-      console.log("[cycling-effort] Segment debug tooltip data", debugPayload);
       const popupEl = this.segmentDebugPopup.getElement?.();
       if (popupEl) {
         popupEl.style.pointerEvents = "none";

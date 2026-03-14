@@ -16,6 +16,7 @@ export const defaultUiState = {
     forecastTime: 'unknown',
     segmentCount: 0,
     weatherWeightPercent: 75,
+    accurateWindMode: false,
     candidateCount: 0,
     computedAt: '',
 };

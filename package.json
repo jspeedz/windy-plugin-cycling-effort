@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "start": "rollup -cw",
-    "build": "rollup -c"
+    "build": "rollup -c",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.7",
@@ -17,6 +19,7 @@
     "rollup-plugin-cleanup": "^3.2.1",
     "rollup-plugin-serve": "^1.1.1",
     "rollup-plugin-svelte": "^7.1.6",
-    "svelte": "^4.2.9"
+    "svelte": "^4.2.9",
+    "vitest": "^4.1.0"
   }
 }
