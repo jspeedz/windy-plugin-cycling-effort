@@ -96,6 +96,7 @@ const SEGMENT_COLOR_INTENSITY_MIX = Object.freeze({
 
 const ELEVATION_DB_NAME = "windy-plugin-cycling-effort-v1";
 const ELEVATION_STORE_NAME = "elevation";
+const ELEVATION_TTL_MS = 2 * 30 * 24 * 60 * 60 * 1000; // ~2 months
 
 // How much the weather slider shifts terrain-vs-weather contribution in final score.
 const SEGMENT_WEIGHT_BLEND = Object.freeze({
@@ -616,50 +617,34 @@ const openElevationDB = () =>
     req.onerror = () => reject(req.error);
   });
 
-const loadElevationCache = async () => {
-  try {
-    const db = await openElevationDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(ELEVATION_STORE_NAME, "readonly");
-      const store = tx.objectStore(ELEVATION_STORE_NAME);
-      const req = store.getAll();
-      req.onsuccess = () => {
-        const map = new Map();
-        for (const row of req.result) {
-          map.set(row.key, row.value);
-        }
-        consoleLog(`Restored ${map.size} cached elevations from IndexedDB`, "info");
-        resolve(map);
-      };
-      req.onerror = () => resolve(new Map());
-    });
-  } catch (_e) {
-    return new Map();
-  }
-};
+const getElevationFromDB = (db, key) =>
+  new Promise((resolve) => {
+    const req = db
+      .transaction(ELEVATION_STORE_NAME, "readonly")
+      .objectStore(ELEVATION_STORE_NAME)
+      .get(key);
+    req.onsuccess = () => {
+      const row = req.result;
+      if (!row) return resolve(null);
+      if (Date.now() - row.storedAt > ELEVATION_TTL_MS) return resolve(null);
+      resolve(row.value);
+    };
+    req.onerror = () => resolve(null);
+  });
 
-const persistElevationCache = async (controller) => {
+const putElevationInDB = (db, key, value) => {
   try {
-    const db = await openElevationDB();
-    const tx = db.transaction(ELEVATION_STORE_NAME, "readwrite");
-    const store = tx.objectStore(ELEVATION_STORE_NAME);
-    store.clear();
-    for (const [key, value] of controller.elevationCache) {
-      store.put({ key, value });
-    }
-    await new Promise((resolve, reject) => {
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
-    consoleLog("Persisted elevation cache to IndexedDB", "info");
+    db
+      .transaction(ELEVATION_STORE_NAME, "readwrite")
+      .objectStore(ELEVATION_STORE_NAME)
+      .put({ key, value, storedAt: Date.now() });
   } catch (_e) {
     // Ignore storage errors
   }
 };
 
-const clearElevationDB = async () => {
+const clearElevationDB = async (db) => {
   try {
-    const db = await openElevationDB();
     const tx = db.transaction(ELEVATION_STORE_NAME, "readwrite");
     tx.objectStore(ELEVATION_STORE_NAME).clear();
     await new Promise((resolve, reject) => {
@@ -730,10 +715,7 @@ class CyclingEffortController {
     this.recomputeQueued = false;
     this.hasRenderedSegments = false;
     this.lastUploadRouteId = null;
-    this.elevationCache = new Map();
-    this.elevationCacheReady = loadElevationCache().then((map) => {
-      this.elevationCache = map;
-    });
+    this.elevationDB = openElevationDB().catch(() => null);
     this.dimmedRouteLayers = new Map();
     this.layerMutationSuppressUntil = 0;
     this.lastExternalRouteMutationAt = 0;
@@ -850,10 +832,10 @@ class CyclingEffortController {
     return false;
   }
 
-  removeCaches() {
+  async removeCaches() {
     consoleLog("Removing locally cached data", "info");
-    this.elevationCache.clear();
-    clearElevationDB();
+    const db = await this.elevationDB;
+    if (db) clearElevationDB(db);
   }
 
   onLayerMutation(evt) {
@@ -1314,21 +1296,24 @@ class CyclingEffortController {
     //   return points;
     // }
 
-    await this.elevationCacheReady;
+    const db = await this.elevationDB;
     const indices = sampledIndices(points.length, 100000);
     const samples = [];
 
     const fetchOne = async (idx) => {
       const point = points[idx];
       const key = `${round(point.lat, 5)},${round(point.lon, 5)}`;
-      if (this.elevationCache.has(key)) {
-        return this.elevationCache.get(key);
+      if (db) {
+        const cached = await getElevationFromDB(db, key);
+        if (cached != null) {
+          return cached;
+        }
       }
       try {
         const payload = await getElevation(point.lat, point.lon);
         const elevation = parseElevationPayload(payload);
-        if (elevation != null) {
-          this.elevationCache.set(key, elevation);
+        if (elevation != null && db) {
+          putElevationInDB(db, key, elevation);
         }
         return elevation;
       } catch (_error) {
@@ -1343,7 +1328,6 @@ class CyclingEffortController {
         samples.push({ idx, elevation });
       }
     }
-    persistElevationCache(this);
 
     if (samples.length < 2) {
       return points;
