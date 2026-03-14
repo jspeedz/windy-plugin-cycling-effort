@@ -154,13 +154,13 @@
                     <span><span class="iconfont"></span> {$uiState.distanceKm} km</span>
                     <span><span class="iconfont">3</span> {$uiState.ascentM} m</span>
                     <span><span class="iconfont">4</span> {$uiState.descentM} m</span>
-                    <div class="invert-route-btn" role="button" aria-pressed="{$uiState.isRouteInverted}" on:click={handleInvertRoute}>
+                    <button class="invert-route-btn" aria-pressed="{$uiState.isRouteInverted}" on:click={handleInvertRoute} tabindex="0">
                         {#if $uiState.isRouteInverted}
                             <div class="checkbox noselect">Invert</div>
                         {:else}
                             <div class="checkbox noselect checkbox--off">Invert</div>
                         {/if}
-                    </div>
+                    </button>
                 </div>
             {:else}
                 <div class="graph-empty size-xs">Elevation profile unavailable for this route.</div>
@@ -322,6 +322,10 @@
     }
 
     .invert-route-btn {
+        background: none;
+        border: none;
+        color: inherit;
+        cursor: pointer;
         padding: 0 2px;
         font-size: 11px;
         margin-left: auto;
