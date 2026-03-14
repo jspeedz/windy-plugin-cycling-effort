@@ -103,25 +103,16 @@ const SEGMENT_WEIGHT_BLEND = Object.freeze({
 });
 
 const SEGMENT_COLOR_TUNING = Object.freeze({
-  baseSaturation: 52,
-  saturationBoost: 38,
-  baseLightness: 58,
-  lightnessDropFromIntensity: 20,
-  lightnessDropFromDifficulty: 12,
+  baseSaturation: 48,
+  saturationBoost: 42,
+  baseLightness: 60,
+  lightnessDropFromIntensity: 22,
+  lightnessDropFromDifficulty: 10,
   downhillLightnessLift: 4,
-  minLightness: 24,
-  maxLightness: 66,
+  minLightness: 26,
+  maxLightness: 68,
 });
 
-// Visual wind calibration target: Beaufort 7+ should read as darkest red
-// for adverse full-headwind conditions.
-const SEGMENT_WIND_COLOR_CALIBRATION = Object.freeze({
-  darkRedAtWindMs: 12.5,
-  headCrosswindPenaltyShare: 0.72,
-  gustPenaltyShare: 0.58,
-  tailCrosswindReliefShare: 0.45,
-  tailwindReliefShare: 1.05,
-});
 
 const ENABLE_SEGMENT_DEBUG_TOOLTIP = false;
 const SHOW_SEGMENT_DEBUG_TOOLTIPS = ENABLE_SEGMENT_DEBUG_TOOLTIP;
@@ -355,10 +346,7 @@ const colorForSegmentDifficulty = (
   const difficulty = clamp(difficultyNorm, 0, 1);
   const intensity = clamp(intensityNorm, 0, 1);
   const downhillLift = clamp(downhillReliefNorm, 0, 1);
-  const hue =
-    difficulty <= 0.5
-      ? 120 - (120 - 32) * (difficulty / 0.5)
-      : 32 - 32 * ((difficulty - 0.5) / 0.5);
+  const hue = 120 * (1 - difficulty);
   const saturation =
     SEGMENT_COLOR_TUNING.baseSaturation +
     intensity * SEGMENT_COLOR_TUNING.saturationBoost;
@@ -383,25 +371,8 @@ export const effortLegendStops = (
   );
   return Array.from({ length: 11 }, (_unused, index) => {
     const t = index / 10;
-    const uphillNorm = t;
-    const downhillNorm = 1 - t;
-    const gradientDifficultyNorm = clamp(
-      uphillNorm * SEGMENT_GRADIENT_FACTORS.uphillDifficultyWeight +
-        downhillNorm * SEGMENT_GRADIENT_FACTORS.downhillDifficultyWeight -
-        downhillNorm * SEGMENT_GRADIENT_FACTORS.downhillReliefWeight,
-      0,
-      1,
-    );
-    const windDifficultyNorm = clamp(t, 0, 1);
-    const normalizedEffort = clamp(0.18 + t * 0.82, 0, 1);
-    const difficulty = compositeSegmentDifficulty({
-      normalizedEffort,
-      windDifficultyNorm,
-      gradientDifficultyNorm,
-      weatherWeightPercent: clampedWeight,
-    });
-    const intensityNorm = clamp(0.32 + t * 0.6, 0, 1);
-    return colorForSegmentDifficulty(difficulty, intensityNorm, downhillNorm);
+    const intensityNorm = clamp(0.15 + Math.abs(t - 0.5) * 1.7, 0, 1);
+    return colorForSegmentDifficulty(t, intensityNorm, 0);
   });
 };
 
@@ -1661,36 +1632,24 @@ class CyclingEffortController {
         0,
         1,
       );
-      const adverseWindMs =
-        segment.headwindEffectiveSpeed +
-        segment.headCrosswindEffectiveSpeed *
-          SEGMENT_WIND_COLOR_CALIBRATION.headCrosswindPenaltyShare +
-        segment.gustDelta * SEGMENT_WIND_COLOR_CALIBRATION.gustPenaltyShare;
-      const assistiveWindMs =
-        segment.tailCrosswindEffectiveSpeed *
-          SEGMENT_WIND_COLOR_CALIBRATION.tailCrosswindReliefShare +
-        segment.tailwindEffectiveSpeed *
-          SEGMENT_WIND_COLOR_CALIBRATION.tailwindReliefShare;
-      const netAdverseWindMs = Math.max(0, adverseWindMs - assistiveWindMs);
-      const windVisualDifficultyNorm = clamp(
-        netAdverseWindMs /
-          Math.max(1e-6, SEGMENT_WIND_COLOR_CALIBRATION.darkRedAtWindMs),
-        0,
-        1,
-      );
-      const tailwindVisualReliefNorm = clamp(
-        assistiveWindMs /
-          Math.max(1e-6, SEGMENT_WIND_COLOR_CALIBRATION.darkRedAtWindMs),
-        0,
-        1,
-      );
+      // Color difficulty centered at 0.5 (neutral = flat, no wind).
+      // Terrain: uphill pushes toward red, downhill pushes toward green.
+      // Fixed impact regardless of weather.
+      const terrainColorShift =
+        uphillNorm * 0.3 - downhillNorm * 0.2;
+      // Wind: headwind pushes toward red, tailwind pushes toward green.
+      // Higher wind speeds = progressively stronger effect.
+      const adverseWindNorm =
+        headwindNorm * 1.0 +
+        headCrosswindNorm * 0.72 +
+        gustNorm * 0.55;
+      const assistiveWindNorm =
+        tailwindNorm * 1.0 +
+        tailCrosswindNorm * 0.4;
+      const windColorShift =
+        (adverseWindNorm - assistiveWindNorm) * 0.42;
       const colorDifficulty = clamp(
-        Math.max(
-          windVisualDifficultyNorm,
-          normalized * 0.48 +
-            Math.max(windDifficultyNorm, weatherMagnitudePeak) * 0.6 -
-            tailwindVisualReliefNorm * 0.26,
-        ),
+        0.5 + terrainColorShift + windColorShift,
         0,
         1,
       );
@@ -1704,9 +1663,8 @@ class CyclingEffortController {
         normalizedEffort,
         compositeDifficultyNorm: normalized,
         colorDifficultyNorm: colorDifficulty,
-        windVisualDifficultyNorm,
-        tailwindVisualReliefNorm,
-        netAdverseWindMs,
+        terrainColorShift,
+        windColorShift,
         gradientDifficultyNorm,
         windDifficultyNorm,
         effortWeight: domainWeights.effort,
