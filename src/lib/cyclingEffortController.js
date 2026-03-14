@@ -94,7 +94,8 @@ const SEGMENT_COLOR_INTENSITY_MIX = Object.freeze({
   terrain: 0.3,
 });
 
-const ELEVATION_CACHE_STORAGE_KEY = "plugin-cycling-effort-v1-elevation-cache";
+const ELEVATION_DB_NAME = "windy-plugin-cycling-effort-v1";
+const ELEVATION_STORE_NAME = "elevation";
 
 // How much the weather slider shifts terrain-vs-weather contribution in final score.
 const SEGMENT_WEIGHT_BLEND = Object.freeze({
@@ -602,28 +603,71 @@ const parseElevationPayload = (payload) => {
   return nested == null ? null : nested;
 };
 
-const loadElevationCache = () => {
+const openElevationDB = () =>
+  new Promise((resolve, reject) => {
+    const req = indexedDB.open(ELEVATION_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(ELEVATION_STORE_NAME)) {
+        db.createObjectStore(ELEVATION_STORE_NAME, { keyPath: "key" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+
+const loadElevationCache = async () => {
   try {
-    const raw = localStorage.getItem(ELEVATION_CACHE_STORAGE_KEY);
-    if (!raw) return new Map();
-    const obj = JSON.parse(raw);
-    if (obj && typeof obj === "object") {
-      return new Map(Object.entries(obj));
-    }
-    consoleLog("Restored local caches", "info");
+    const db = await openElevationDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(ELEVATION_STORE_NAME, "readonly");
+      const store = tx.objectStore(ELEVATION_STORE_NAME);
+      const req = store.getAll();
+      req.onsuccess = () => {
+        const map = new Map();
+        for (const row of req.result) {
+          map.set(row.key, row.value);
+        }
+        consoleLog(`Restored ${map.size} cached elevations from IndexedDB`, "info");
+        resolve(map);
+      };
+      req.onerror = () => resolve(new Map());
+    });
   } catch (_e) {
-    // Ignore parse errors or quota errors
+    return new Map();
   }
-  return new Map();
 };
 
-const persistElevationCache = (controller) => {
+const persistElevationCache = async (controller) => {
   try {
-    const obj = Object.fromEntries(controller.elevationCache);
-    localStorage.setItem(ELEVATION_CACHE_STORAGE_KEY, JSON.stringify(obj));
-    consoleLog("Persisted local caches", "info");
+    const db = await openElevationDB();
+    const tx = db.transaction(ELEVATION_STORE_NAME, "readwrite");
+    const store = tx.objectStore(ELEVATION_STORE_NAME);
+    store.clear();
+    for (const [key, value] of controller.elevationCache) {
+      store.put({ key, value });
+    }
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    consoleLog("Persisted elevation cache to IndexedDB", "info");
   } catch (_e) {
-    // Ignore quota exceeded or other storage errors
+    // Ignore storage errors
+  }
+};
+
+const clearElevationDB = async () => {
+  try {
+    const db = await openElevationDB();
+    const tx = db.transaction(ELEVATION_STORE_NAME, "readwrite");
+    tx.objectStore(ELEVATION_STORE_NAME).clear();
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (_e) {
+    // Ignore storage errors
   }
 };
 
@@ -686,7 +730,10 @@ class CyclingEffortController {
     this.recomputeQueued = false;
     this.hasRenderedSegments = false;
     this.lastUploadRouteId = null;
-    this.elevationCache = loadElevationCache();
+    this.elevationCache = new Map();
+    this.elevationCacheReady = loadElevationCache().then((map) => {
+      this.elevationCache = map;
+    });
     this.dimmedRouteLayers = new Map();
     this.layerMutationSuppressUntil = 0;
     this.lastExternalRouteMutationAt = 0;
@@ -804,12 +851,9 @@ class CyclingEffortController {
   }
 
   removeCaches() {
-    try {
-      consoleLog("Removing locally cached data", "info");
-      localStorage.removeItem(ELEVATION_CACHE_STORAGE_KEY);
-    } catch (_e) {
-      // Ignore storage errors
-    }
+    consoleLog("Removing locally cached data", "info");
+    this.elevationCache.clear();
+    clearElevationDB();
   }
 
   onLayerMutation(evt) {
@@ -1270,6 +1314,7 @@ class CyclingEffortController {
     //   return points;
     // }
 
+    await this.elevationCacheReady;
     const indices = sampledIndices(points.length, 100000);
     const samples = [];
 
