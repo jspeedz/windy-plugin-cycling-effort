@@ -72,11 +72,12 @@
     <!--<p class="subtitle">Weather + profile scoring for uploaded routes</p>-->
 
 <div>
-    <div class="fg-white">Cycling effort</div>
+    <div class="fg-yellow">
+        Cycling effort{#if $uiState.hasRoute}: <span class="label"><strong class="size-m">{$uiState.totalEffort} points</strong></span>{/if}
+    </div>
     {#if $uiState.hasRoute}
-        <section class="effort-box fg-white mt-5 mb-5">
-            <!--<span class="size-m">Total Effort</span>-->
-            <span class="label"><strong class="size-m">{$uiState.totalEffort} points</strong></span> <span class="size-xs">(weather impact: {$uiState.weatherImpact} points)</span>
+        <section class="effort-box fg-yellow mt-5 mb-5">
+            <span class="size-xs">Weather impact: {$uiState.weatherImpact} points</span>
         </section>
 <!-- tooltip--top data-tooltip="Total distance: {$uiState.distanceKm} km"-->
         <section class="route-graph-box mt-5 mb-5">
@@ -153,17 +154,13 @@
                     <span><span class="iconfont"></span> {$uiState.distanceKm} km</span>
                     <span><span class="iconfont">3</span> {$uiState.ascentM} m</span>
                     <span><span class="iconfont">4</span> {$uiState.descentM} m</span>
-                    <button
-                            class="invert-route-btn"
-                            on:click={handleInvertRoute}
-                            title="Invert route"
-                    >
+                    <div class="invert-route-btn" role="button" aria-pressed="{$uiState.isRouteInverted}" on:click={handleInvertRoute}>
                         {#if $uiState.isRouteInverted}
-                            <span class="iconfont">I</span>
+                            <div class="checkbox noselect">Invert</div>
                         {:else}
-                            <span class="iconfont">G</span>
+                            <div class="checkbox noselect checkbox--off">Invert</div>
                         {/if}
-                    </button>
+                    </div>
                 </div>
             {:else}
                 <div class="graph-empty size-xs">Elevation profile unavailable for this route.</div>
@@ -293,12 +290,12 @@
     }
 
     .axis-text {
-        fill: var(--color-white);
+        fill: var(--color-yellow);
         font-size: 9px;
     }
 
     /*.axis-title {*/
-    /*    fill: var(--color-white);*/
+    /*    fill: var(--color-yellow);*/
     /*    font-size: 10px;*/
     /*    font-weight: 600;*/
     /*}*/
@@ -310,7 +307,7 @@
         gap: 5px;
         margin-top: 2px;
         margin-left: 18px;
-        color: var(--color-white);
+        color: var(--color-yellow);
         font-size: 8px;
         line-height: 1.1;
     }
@@ -320,24 +317,30 @@
     }
 
     .graph-empty {
-        color: var(--color-white);
+        color: var(--color-yellow);
         padding: 8px 4px;
     }
 
     .invert-route-btn {
-        background: none;
-        border: none;
-        color: var(--color-yellow);
-        cursor: pointer;
         padding: 0 2px;
-        font-size: 16px;
-        line-height: 1;
-        opacity: 0.8;
+        font-size: 11px;
         margin-left: auto;
+        margin-right: 2px;
     }
 
-    .invert-route-btn:hover {
-        opacity: 1;
-        color: #fff;
-    }
+    /*.invert-route-btn {*/
+    /*    background: none;*/
+    /*    border: none;*/
+    /*    color: var(--color-yellow);*/
+    /*    cursor: pointer;*/
+    /*    padding: 0 2px;*/
+    /*    font-size: 11px;*/
+    /*    line-height: 1;*/
+    /*    opacity: 0.8;*/
+    /*    margin-left: auto;*/
+    /*}*/
+
+    /*.invert-route-btn span.iconfont {*/
+    /*    font-size: 16px;*/
+    /*}*/
 </style>
