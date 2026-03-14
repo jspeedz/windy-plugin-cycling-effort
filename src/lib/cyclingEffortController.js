@@ -576,6 +576,7 @@ const formatForecastTime = (timestamp) => {
 };
 
 const OVERLAY_PANE = "cyclingEffortPane";
+const ARROW_PANE = "cyclingEffortArrowPane";
 
 const activeModel = () => {
   const direct = store.get("product");
@@ -1842,20 +1843,30 @@ class CyclingEffortController {
     };
   }
 
-  ensureOverlayLayer() {
-    if (this.overlayLayer || typeof window === "undefined" || !window.L) {
-      return;
-    }
+  ensureOverlayPanes() {
     if (!map.getPane(OVERLAY_PANE)) {
       map.createPane(OVERLAY_PANE);
       const pane = map.getPane(OVERLAY_PANE);
       if (pane) {
         pane.style.zIndex = "660";
-        pane.style.pointerEvents = SHOW_SEGMENT_DEBUG_TOOLTIPS
-          ? "auto"
-          : "none";
+        pane.style.pointerEvents = SHOW_SEGMENT_DEBUG_TOOLTIPS ? "auto" : "none";
       }
     }
+    if (!map.getPane(ARROW_PANE)) {
+      map.createPane(ARROW_PANE);
+      const pane = map.getPane(ARROW_PANE);
+      if (pane) {
+        pane.style.zIndex = "661";
+        pane.style.pointerEvents = "none";
+      }
+    }
+  }
+
+  ensureOverlayLayer() {
+    if (this.overlayLayer || typeof window === "undefined" || !window.L) {
+      return;
+    }
+    this.ensureOverlayPanes();
     this.overlayLayer = window.L.layerGroup();
     this.overlayLayer.__cyclingEffortOverlay = true;
     this.overlayLayer.addTo(map);
@@ -1879,16 +1890,7 @@ class CyclingEffortController {
         }
       }
     }
-    if (!map.getPane(OVERLAY_PANE)) {
-      map.createPane(OVERLAY_PANE);
-      const pane = map.getPane(OVERLAY_PANE);
-      if (pane) {
-        pane.style.zIndex = "660";
-        pane.style.pointerEvents = SHOW_SEGMENT_DEBUG_TOOLTIPS
-          ? "auto"
-          : "none";
-      }
-    }
+    this.ensureOverlayPanes();
     this.overlayLayer = window.L.layerGroup();
     this.overlayLayer.__cyclingEffortOverlay = true;
     this.overlayLayer.addTo(map);
@@ -2072,6 +2074,32 @@ class CyclingEffortController {
     //   segmentCount: segments.length,
     //   uniqueColors: [...new Set(segments.map((segment) => segment.color))],
     // });
+    this.renderDirectionArrow(segments);
+  }
+
+  renderDirectionArrow(segments) {
+    if (!this.overlayLayer || typeof window === "undefined" || !window.L || !segments.length) {
+      return;
+    }
+    const totalKm = segments[segments.length - 1].cumulativeKm;
+    const targetKm = totalKm * 0.02;
+    const midSegment = segments.find((s) => s.cumulativeKm >= targetKm) ?? segments[0];
+    const lat = (midSegment.start.lat + midSegment.end.lat) / 2;
+    const lon = (midSegment.start.lon + midSegment.end.lon) / 2;
+    const bearing = midSegment.routeBearing ?? 0;
+    const icon = window.L.divIcon({
+      className: "",
+      html: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="-11 -11 22 22" style="transform:rotate(${bearing}deg);display:block;filter:drop-shadow(0 0 2px rgba(0,0,0,0.6))"><path d="M0,-9 L6,5 L0,1 L-6,5 Z" fill="white"/></svg>`,
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+    const marker = window.L.marker([lat, lon], {
+      icon,
+      interactive: false,
+      pane: ARROW_PANE,
+    });
+    marker.__cyclingEffortOverlay = true;
+    this.overlayLayer.addLayer(marker);
   }
 
   async recompute(reason) {
