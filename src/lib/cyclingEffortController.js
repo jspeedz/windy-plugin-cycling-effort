@@ -1,6 +1,5 @@
 import broadcast from "@windy/broadcast";
 import { getElevation, getPointForecastData } from "@windy/fetch";
-import interpolator from "@windy/interpolator";
 import { map } from "@windy/map";
 import store from "@windy/store";
 
@@ -124,9 +123,8 @@ const SEGMENT_WIND_COLOR_CALIBRATION = Object.freeze({
   tailwindReliefShare: 1.05,
 });
 
-const ENABLE_SEGMENT_DEBUG_TOOLTIP = true;
+const ENABLE_SEGMENT_DEBUG_TOOLTIP = false;
 const SHOW_SEGMENT_DEBUG_TOOLTIPS = ENABLE_SEGMENT_DEBUG_TOOLTIP;
-const SEGMENT_DEBUG_CONSOLE_LOG_DEBOUNCE_MS = 250;
 const SEGMENT_DEBUG_TOOLTIP_MIN_WIDTH_PX = 700;
 const SEGMENT_DEBUG_TOOLTIP_MAX_WIDTH_PX = 1320;
 const SEGMENT_DEBUG_POPUP_OPTIONS = Object.freeze({
@@ -287,11 +285,11 @@ const formatSegmentDebugTooltipHtml = (segment, index) => {
     `Distance: ${round(segment.distanceKm, 3)} km`,
     `Elevation: ${signed(segment.elevationDiff, 1)} m (${signed(segment.slopeRateMPerKm, 1)} m/km)`,
     `Cycling heading/ Wind(from-direction): ${headingLabel} / ${windDirectionLabel}`,
-    `Wind Head/Hcross/Tcross/Tail/Gusts: ${round(segment.headwindEffectiveSpeed, 1)} / ${round(segment.headCrosswindEffectiveSpeed, 1)} / ${round(segment.tailCrosswindEffectiveSpeed, 1)} / ${round(segment.tailwindEffectiveSpeed, 1)} / ${round(segment.gustDelta, 1)} m/s`,
+    `Wind H/HC/TC/T/G: ${round(segment.headwindEffectiveSpeed, 1)} / ${round(segment.headCrosswindEffectiveSpeed, 1)} / ${round(segment.tailCrosswindEffectiveSpeed, 1)} / ${round(segment.tailwindEffectiveSpeed, 1)} / ${round(segment.gustDelta, 1)} m/s`,
     `Points: base ${round(debug.baseEffort ?? 0, 2)} + terrain ${round(debug.terrainComponent ?? 0, 2)} + weather penalty ${round(debug.weatherPenaltyComponent ?? 0, 2)} - weather relief ${round(debug.weatherReliefComponent ?? 0, 2)} = ${round(segment.effort, 2)}`,
     `Normalized effort effort/gradient/wind: ${toPercent(debug.normalizedEffort ?? 0)} / ${toPercent(debug.gradientDifficultyNorm ?? 0)} / ${toPercent(debug.windDifficultyNorm ?? 0)}`,
-    `Weights effort/gradient/wind: ${toPercent(debug.effortWeight ?? 0)} / ${toPercent(debug.terrainWeight ?? 0)} / ${toPercent(debug.weatherWeight ?? 0)}`,
-    `Contribution parts effort/gradient/wind: ${round(debug.effortContribution ?? 0, 2)} / ${round(debug.gradientContribution ?? 0, 2)} / ${round(debug.windContribution ?? 0, 2)}`,
+    `Weights E/G/W: ${toPercent(debug.effortWeight ?? 0)} / ${toPercent(debug.terrainWeight ?? 0)} / ${toPercent(debug.weatherWeight ?? 0)}`,
+    `Contribution parts E/G/W: ${round(debug.effortContribution ?? 0, 2)} / ${round(debug.gradientContribution ?? 0, 2)} / ${round(debug.windContribution ?? 0, 2)}`,
     `Final score: ${toPercent(segment.normalizedEffort ?? 0)}`,
     `<span style="opacity:0.7;">---</span>`,
     `Legend:<br/>H = Headwind, HC = Head crosswind<br/>TC = Tail crosswind, T = Tailwind<br/>G = Gust (delta), E = Effort, G = Gradient, W = Wind`,
@@ -414,133 +412,6 @@ export const effortLegendGradient = (
   return `linear-gradient(to right, ${stops.join(", ")})`;
 };
 
-const parseScalarFromInterpolatedValue = (value) => {
-  if (value == null) {
-    return 0;
-  }
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return Math.max(0, value);
-  }
-  if (Array.isArray(value) && value.length) {
-    const a = safeNumber(value[0]);
-    const b = safeNumber(value[1]);
-    const c = safeNumber(value[2]);
-
-    // Windy interpolator often returns [direction, speed, flag].
-    if (
-      a != null &&
-      b != null &&
-      c != null &&
-      a >= 0 &&
-      a <= 360 &&
-      b >= 0 &&
-      b <= 250 &&
-      c >= 0 &&
-      c <= 1
-    ) {
-      return b;
-    }
-
-    const arrScalar = safeNumber(value[0]);
-    return arrScalar == null ? 0 : Math.max(0, arrScalar);
-  }
-  if (typeof value === "object") {
-    const candidates = [
-      value.value,
-      value.scalar,
-      value.speed,
-      value.wind,
-      value.ws,
-      value.gust,
-    ];
-    for (const candidate of candidates) {
-      const n = safeNumber(candidate);
-      if (n != null) {
-        return Math.max(0, n);
-      }
-    }
-  }
-  return 0;
-};
-
-const parseWindFromInterpolatedValue = (value) => {
-  if (value == null) {
-    return { speed: 0, directionFrom: null };
-  }
-
-  if (Array.isArray(value) && value.length >= 2) {
-    const a = safeNumber(value[0]);
-    const b = safeNumber(value[1]);
-    const c = safeNumber(value[2]);
-
-    // Windy interpolator frequently returns [directionFrom, speed, flag].
-    if (
-      a != null &&
-      b != null &&
-      c != null &&
-      a >= 0 &&
-      a <= 360 &&
-      b >= 0 &&
-      b <= 250 &&
-      c >= 0 &&
-      c <= 1
-    ) {
-      return {
-        speed: b,
-        directionFrom: normalizeDegrees(a),
-      };
-    }
-
-    if (a != null && b != null) {
-      // Fallback: interpret as vector components [u, v].
-      const u = a;
-      const v = b;
-      const speed = Math.hypot(u, v);
-      const directionToward = normalizeDegrees(
-        (Math.atan2(u, v) * 180) / Math.PI,
-      );
-      return {
-        speed,
-        directionFrom: normalizeDegrees(directionToward + 180),
-      };
-    }
-  }
-
-  if (typeof value === "object") {
-    const u = safeNumber(value.u);
-    const v = safeNumber(value.v);
-    if (u != null && v != null) {
-      const speed = Math.hypot(u, v);
-      const directionToward = normalizeDegrees(
-        (Math.atan2(u, v) * 180) / Math.PI,
-      );
-      return {
-        speed,
-        directionFrom: normalizeDegrees(directionToward + 180),
-      };
-    }
-
-    const speed = safeNumber(
-      value.speed ?? value.ws ?? value.wind ?? value.value,
-    );
-    const directionFrom = safeNumber(
-      value.direction ?? value.dir ?? value.wd ?? value.angle,
-    );
-    if (speed != null) {
-      return {
-        speed: Math.max(0, speed),
-        directionFrom:
-          directionFrom == null ? null : normalizeDegrees(directionFrom),
-      };
-    }
-  }
-
-  const scalar = safeNumber(value);
-  return {
-    speed: scalar == null ? 0 : Math.max(0, scalar),
-    directionFrom: null,
-  };
-};
 
 
 const flattenLatLngArray = (latLngs, output = []) => {
@@ -816,9 +687,6 @@ const summarizeInterpolatedValue = (value) => {
   return String(value);
 };
 
-const windDataScore = (wind) =>
-  (wind?.speed > 0 ? 1 : 0) + (wind?.directionFrom != null ? 1 : 0);
-
 const sampledIndices = (length, maxSamples) => {
   if (length <= 0) {
     return [];
@@ -845,6 +713,7 @@ class CyclingEffortController {
     this.pendingRecomputeTimers = new Set();
     this.recomputeInProgress = false;
     this.recomputeQueued = false;
+    this.hasRenderedSegments = false;
     this.lastUploadRouteId = null;
     this.elevationCache = loadElevationCache();
     this.dimmedRouteLayers = new Map();
@@ -852,12 +721,10 @@ class CyclingEffortController {
     this.lastExternalRouteMutationAt = 0;
     this.weatherSampleDebugCount = 0;
     this.weatherWeightPercent = WEATHER_WEIGHT_PERCENTAGE;
-    this.accurateWindMode = false;
 
     this.removeCaches = this.removeCaches.bind(this);
     this.onLayerMutation = this.onLayerMutation.bind(this);
     this.onWeatherMutation = this.onWeatherMutation.bind(this);
-    this.onMapMoveFinished = this.onMapMoveFinished.bind(this);
     this.onBroadcastRqstOpen = this.onBroadcastRqstOpen.bind(this);
     this.onBroadcastPluginOpened = this.onBroadcastPluginOpened.bind(this);
     this.onBroadcastRqstClose = this.onBroadcastRqstClose.bind(this);
@@ -867,14 +734,14 @@ class CyclingEffortController {
 
   mount() {
     this.movePanelToEmbeddedContainer();
-    patchUiState({ weatherWeightPercent: this.weatherWeightPercent, accurateWindMode: this.accurateWindMode });
+    patchUiState({ weatherWeightPercent: this.weatherWeightPercent });
     this.bindListeners();
     this.scheduleRecompute("plugin mounted");
   }
 
   open() {
     this.movePanelToEmbeddedContainer();
-    patchUiState({ weatherWeightPercent: this.weatherWeightPercent, accurateWindMode: this.accurateWindMode });
+    patchUiState({ weatherWeightPercent: this.weatherWeightPercent });
     this.bindListeners();
     this.scheduleRecompute("plugin opened");
   }
@@ -893,15 +760,6 @@ class CyclingEffortController {
     this.scheduleRecompute("weight changed");
   }
 
-  setAccurateWindMode(enabled) {
-    const value = Boolean(enabled);
-    if (value === this.accurateWindMode) {
-      return;
-    }
-    this.accurateWindMode = value;
-    patchUiState({ accurateWindMode: value });
-    this.scheduleRecompute("accurate wind mode changed");
-  }
 
   close() {
     this.unbindListeners();
@@ -1006,10 +864,6 @@ class CyclingEffortController {
     this.scheduleRecompute("weather changed");
   }
 
-  onMapMoveFinished() {
-    this.scheduleRecompute("map moved");
-  }
-
   onBroadcastRqstOpen(pluginName, params) {
     if (pluginName !== "upload" && pluginName !== "uploader") {
       return;
@@ -1090,12 +944,9 @@ class CyclingEffortController {
     }
     map.on("layeradd", this.onLayerMutation);
     map.on("layerremove", this.onLayerMutation);
-    map.on("moveend", this.onMapMoveFinished);
-    map.on("zoomend", this.onMapMoveFinished);
     store.on("timestamp", this.onWeatherMutation);
     store.on("product", this.onWeatherMutation);
     store.on("preferredProduct", this.onWeatherMutation);
-    broadcast.on("redrawFinished", this.onWeatherMutation);
     broadcast.on("rqstOpen", this.onBroadcastRqstOpen);
     broadcast.on("pluginOpened", this.onBroadcastPluginOpened);
     broadcast.on("rqstClose", this.onBroadcastRqstClose);
@@ -1110,12 +961,9 @@ class CyclingEffortController {
     }
     map.off("layeradd", this.onLayerMutation);
     map.off("layerremove", this.onLayerMutation);
-    map.off("moveend", this.onMapMoveFinished);
-    map.off("zoomend", this.onMapMoveFinished);
     store.off("timestamp", this.onWeatherMutation);
     store.off("product", this.onWeatherMutation);
     store.off("preferredProduct", this.onWeatherMutation);
-    broadcast.off("redrawFinished", this.onWeatherMutation);
     broadcast.off("rqstOpen", this.onBroadcastRqstOpen);
     broadcast.off("pluginOpened", this.onBroadcastPluginOpened);
     broadcast.off("rqstClose", this.onBroadcastRqstClose);
@@ -1410,146 +1258,28 @@ class CyclingEffortController {
     return windMap;
   }
 
-  async createWeatherSampler(accurateWindData = null) {
-    if (accurateWindData != null && accurateWindData.size > 0) {
-      const entries = [...accurateWindData.entries()].map(([key, wind]) => {
-        const commaIdx = key.indexOf(",");
-        return {
-          lat: parseFloat(key.slice(0, commaIdx)),
-          lon: parseFloat(key.slice(commaIdx + 1)),
-          wind,
-        };
-      });
-      return (lat, lon) => {
-        let best = null;
-        let bestDist = Infinity;
-        for (const entry of entries) {
-          const dist = Math.hypot(entry.lat - lat, entry.lon - lon);
-          if (dist < bestDist) {
-            bestDist = dist;
-            best = entry.wind;
-          }
-        }
-        return Promise.resolve(best ?? { windSpeed: 0, windDirectionFrom: null, gustSpeed: 0 });
-      };
-    }
-
-    const interpolateCoords =
-      typeof interpolator.getLatLonInterpolator === "function"
-        ? await interpolator.getLatLonInterpolator()
-        : null;
-    const interpolateWindDirect =
-      typeof interpolator.interpolateWind === "function"
-        ? interpolator.interpolateWind.bind(interpolator)
-        : null;
-    const interpolatePointDirect =
-      typeof interpolator.interpolatePoint === "function"
-        ? interpolator.interpolatePoint.bind(interpolator)
-        : null;
-
-    if (!interpolateCoords) {
-      return async (lat, lon) => {
-        const directWind = interpolateWindDirect
-          ? parseWindFromInterpolatedValue(
-              interpolateWindDirect({ lat, lon, alt: "surface" }),
-            )
-          : { speed: 0, directionFrom: null };
-        const directGust = interpolatePointDirect
-          ? parseScalarFromInterpolatedValue(
-              interpolatePointDirect({ lat, lon }, "gust"),
-            )
-          : 0;
-        return {
-          windSpeed: directWind.speed,
-          windDirectionFrom: directWind.directionFrom,
-          gustSpeed: directGust || directWind.speed,
-        };
-      };
-    }
-
-    const baseParams = {
-      timestamp: safeStoreGet("timestamp"),
-      product: safeStoreGet("product") ?? safeStoreGet("preferredProduct"),
-      level: safeStoreGet("level"),
-    };
-
-    return async (lat, lon) => {
-      let wind = null;
-      let gust = null;
-      const windParams = { ...baseParams, overlay: "wind" };
-      const gustParams = { ...baseParams, overlay: "gust" };
-      let directWindRaw = null;
-      let directGustRaw = null;
-
-      try {
-        wind = await interpolateCoords({ lat, lon }, windParams);
-      } catch (_error) {
-        try {
-          wind = await interpolateCoords({ lat, lon });
-        } catch (_nestedError) {
-          // Ignore unavailable wind data.
+  createWeatherSampler(accurateWindData) {
+    const entries = accurateWindData != null && accurateWindData.size > 0
+      ? [...accurateWindData.entries()].map(([key, wind]) => {
+          const commaIdx = key.indexOf(",");
+          return {
+            lat: parseFloat(key.slice(0, commaIdx)),
+            lon: parseFloat(key.slice(commaIdx + 1)),
+            wind,
+          };
+        })
+      : [];
+    return (lat, lon) => {
+      let best = null;
+      let bestDist = Infinity;
+      for (const entry of entries) {
+        const dist = Math.hypot(entry.lat - lat, entry.lon - lon);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = entry.wind;
         }
       }
-
-      try {
-        gust = await interpolateCoords({ lat, lon }, gustParams);
-      } catch (_error) {
-        // Some interpolator variants can only sample currently rendered overlay.
-      }
-
-      const parsedWind = parseWindFromInterpolatedValue(wind);
-      let gustSpeed = parseScalarFromInterpolatedValue(gust);
-      let directWind = { speed: 0, directionFrom: null };
-
-      if (interpolateWindDirect) {
-        try {
-          directWindRaw = interpolateWindDirect({ lat, lon, alt: "surface" });
-          directWind = parseWindFromInterpolatedValue(directWindRaw);
-        } catch (_error) {
-          // Ignore unavailable direct wind interpolation.
-        }
-      }
-      if (interpolatePointDirect) {
-        try {
-          directGustRaw = interpolatePointDirect({ lat, lon }, "gust");
-          const directGust = parseScalarFromInterpolatedValue(directGustRaw);
-          if (directGust > gustSpeed) {
-            gustSpeed = directGust;
-          }
-        } catch (_error) {
-          // Ignore unavailable direct gust interpolation.
-        }
-      }
-
-      let chosenWind =
-        windDataScore(directWind) > windDataScore(parsedWind)
-          ? { ...directWind }
-          : { ...parsedWind };
-      if (chosenWind.speed <= 0 && gustSpeed > 0) {
-        chosenWind.speed = gustSpeed * 0.7;
-      }
-
-      if (this.weatherSampleDebugCount < 5) {
-        //   consoleLog("weather sample", "debug", {
-        //     lat: round(lat, 4),
-        //     lon: round(lon, 4),
-        //     fromCoordsRaw: summarizeInterpolatedValue(wind),
-        //     fromDirectRaw: summarizeInterpolatedValue(directWindRaw),
-        //     gustCoordsRaw: summarizeInterpolatedValue(gust),
-        //     gustDirectRaw: summarizeInterpolatedValue(directGustRaw),
-        //     parsedFromCoords: parsedWind,
-        //     parsedFromDirect: directWind,
-        //     chosenWind,
-        //     gustSpeed: round(gustSpeed, 2),
-        //   });
-        this.weatherSampleDebugCount += 1;
-      }
-
-      return {
-        windSpeed: chosenWind.speed,
-        windDirectionFrom: chosenWind.directionFrom,
-        gustSpeed: gustSpeed || chosenWind.speed,
-      };
+      return Promise.resolve(best ?? { windSpeed: 0, windDirectionFrom: null, gustSpeed: 0 });
     };
   }
 
@@ -1669,14 +1399,10 @@ class CyclingEffortController {
       (count, point) => count + (point.ele != null ? 1 : 0),
       0,
     );
-    let accurateWindData = null;
-    if (this.accurateWindMode) {
-      patchUiState({ status: "Fetching accurate wind data…" });
-      accurateWindData = await this.fetchAccurateWindForPoints(pointsWithElevation);
-    }
-    const sampleWeather = await this.createWeatherSampler(
-      accurateWindData != null && accurateWindData.size > 0 ? accurateWindData : null,
-    );
+    // patchUiState({ status: "Fetching accurate wind data…" });
+    patchUiState({});
+    const accurateWindData = await this.fetchAccurateWindForPoints(pointsWithElevation);
+    const sampleWeather = this.createWeatherSampler(accurateWindData);
     const weatherWeight = clamp(this.weatherWeightPercent / 100, 0, 1);
     const elevationWeight = 1 - weatherWeight;
     const weatherScaling =
@@ -2108,6 +1834,7 @@ class CyclingEffortController {
 
   clearOverlay() {
     this.closeSegmentDebugPopup();
+    this.hasRenderedSegments = false;
     if (!this.overlayLayer) {
       return;
     }
@@ -2188,6 +1915,28 @@ class CyclingEffortController {
       }
       this.closeSegmentDebugPopup();
     }, delayMs);
+  }
+
+  renderLoadingOverlay(points) {
+    this.suppressLayerMutation();
+    this.resetOverlayLayer();
+    if (!this.overlayLayer || typeof window === "undefined" || !window.L || !points.length) {
+      return;
+    }
+    const latlngs = points.map((p) => [p.lat, p.lon]);
+    const polyline = window.L.polyline(latlngs, {
+      color: "#00c853",
+      weight: 8,
+      opacity: 0.85,
+      interactive: false,
+      className: OVERLAY_CLASS,
+      pane: OVERLAY_PANE,
+    });
+    polyline.__cyclingEffortOverlay = true;
+    this.overlayLayer.addLayer(polyline);
+    if (typeof polyline.bringToFront === "function") {
+      polyline.bringToFront();
+    }
   }
 
   renderSegments(segments) {
@@ -2318,6 +2067,9 @@ class CyclingEffortController {
         chosen.points,
         MAX_POINTS_FOR_COMPUTE,
       );
+      if (!this.hasRenderedSegments) {
+        this.renderLoadingOverlay(computePoints);
+      }
       const analysis = await this.analyze(computePoints);
 
       if (!analysis.segments.length) {
@@ -2339,6 +2091,7 @@ class CyclingEffortController {
       }
 
       this.renderSegments(analysis.segments);
+      this.hasRenderedSegments = true;
 
       consoleLog(
         analysis.elevationPointCount === 0
