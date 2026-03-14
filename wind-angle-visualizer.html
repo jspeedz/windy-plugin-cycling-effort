@@ -38,6 +38,20 @@
         font-size: 14px;
         box-sizing: border-box;
       }
+      .slider-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .slider-group input[type="range"] {
+        flex: 1;
+      }
+      .slider-group .slider-value {
+        min-width: 42px;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        font-size: 14px;
+      }
       .output {
         margin-top: 24px;
         padding: 12px;
@@ -110,18 +124,17 @@
       <div class="grid">
         <div>
           <label for="windDirection">Wind direction (from)</label>
-          <input id="windDirection" type="number" step="0.1" value="300" />
+          <div class="slider-group">
+            <input id="windDirection" type="range" min="0" max="359.9" step="0.1" value="300" />
+            <span class="slider-value" id="windValue">300°</span>
+          </div>
         </div>
         <div>
           <label for="routeBearing">Route bearing</label>
-          <input id="routeBearing" type="number" step="0.1" value="240" />
-        </div>
-        <div>
-          <label for="units">Input units</label>
-          <select id="units">
-            <option value="deg" selected>Degrees</option>
-            <option value="rad">Radians</option>
-          </select>
+          <div class="slider-group">
+            <input id="routeBearing" type="range" min="0" max="359.9" step="0.1" value="240" />
+            <span class="slider-value" id="routeValue">240°</span>
+          </div>
         </div>
         <div>
           <label>&nbsp;</label>
@@ -133,8 +146,8 @@
         <div>
           <label for="bucketMode">Bucket ring</label>
           <select id="bucketMode">
-            <option value="north" selected>Fixed to north</option>
-            <option value="route">Relative to route</option>
+            <option value="north">Fixed to north</option>
+            <option value="route" selected>Relative to route</option>
           </select>
         </div>
       </div>
@@ -148,10 +161,10 @@
             <div class="legend-item"><span class="swatch" style="background:#fbc02d"></span>Tail crosswind (45°)</div>
             <div class="legend-item"><span class="swatch" style="background:#2e7d32"></span>Tailwind (90°)</div>
             <div class="legend-item"><span class="swatch" style="background:#1976d2"></span>Route bearing</div>
-            <div class="legend-item"><span class="swatch" style="background:#7b1fa2"></span>Wind direction (from)</div>
+            <div class="legend-item"><span class="swatch" style="background:#7b1fa2"></span>Wind direction (to)</div>
           </div>
           <p class="note" style="margin-top: 12px;" id="bucketNote">
-            Buckets are fixed to north (up). Arrows show the route bearing (blue)
+            Buckets are aligned to the route bearing. Arrows show the route bearing (blue)
             and wind-from direction (purple).
           </p>
         </div>
@@ -178,7 +191,8 @@
     <script>
       const windInput = document.getElementById("windDirection");
       const routeInput = document.getElementById("routeBearing");
-      const unitsSelect = document.getElementById("units");
+      const windValueEl = document.getElementById("windValue");
+      const routeValueEl = document.getElementById("routeValue");
       const bucketModeSelect = document.getElementById("bucketMode");
       const swapButton = document.getElementById("swap");
       const canvas = document.getElementById("compass");
@@ -209,14 +223,6 @@
         return normalized < 0 ? normalized + 360 : normalized;
       };
 
-      const toDegreesIfRadians = (value) => {
-        if (!Number.isFinite(value)) return null;
-        if (unitsSelect.value === "rad") {
-          return (value * 180) / Math.PI;
-        }
-        return value;
-      };
-
       const compassRad = (degrees) => {
         const normalized = normalizeDegrees(degrees);
         return ((normalized - 90) * Math.PI) / 180;
@@ -243,13 +249,15 @@
         }
       };
 
-      const drawArrow = (degrees, color, length) => {
+      const drawArrow = (degrees, color, length, { fullDiameter = false } = {}) => {
         const rad = compassRad(degrees);
         ctx.strokeStyle = color;
         ctx.fillStyle = color;
         ctx.lineWidth = 3;
+        const startX = fullDiameter ? Math.cos(rad + Math.PI) * length : 0;
+        const startY = fullDiameter ? Math.sin(rad + Math.PI) * length : 0;
         ctx.beginPath();
-        ctx.moveTo(0, 0);
+        ctx.moveTo(startX, startY);
         ctx.lineTo(Math.cos(rad) * length, Math.sin(rad) * length);
         ctx.stroke();
 
@@ -371,31 +379,18 @@
 
         drawArrow(route, COLORS.route, ringRadius + ringWidth * 0.9);
         if (windDirectionFrom != null) {
-          drawArrow(windDirectionFrom, COLORS.wind, ringRadius + ringWidth * 0.5);
+          drawArrow(normalizeDegrees(windDirectionFrom + 180), COLORS.wind, ringRadius + ringWidth * 0.5, { fullDiameter: true });
         }
 
         ctx.restore();
       };
 
       const update = () => {
-        const windRaw = Number(windInput.value);
-        const routeRaw = Number(routeInput.value);
-        const windDirectionFrom = toDegreesIfRadians(windRaw);
-        const routeBearing = toDegreesIfRadians(routeRaw);
+        const windDirectionFrom = Number(windInput.value);
+        const routeBearing = Number(routeInput.value);
 
-        if (windDirectionFrom == null || routeBearing == null) {
-          rawDeltaEl.textContent = "-";
-          angleFromRouteEl.textContent = "-";
-          absoluteAngleEl.textContent = "-";
-          headwindEl.textContent = "-";
-          headCrosswindEl.textContent = "-";
-          tailCrosswindEl.textContent = "-";
-          tailwindEl.textContent = "-";
-          bucketEl.textContent = "-";
-          bucketNoteEl.textContent = "Buckets are fixed to north (up). Arrows show the route bearing (blue) and wind-from direction (purple).";
-          drawVisualization(0, null);
-          return;
-        }
+        windValueEl.textContent = windDirectionFrom.toFixed(1) + "°";
+        routeValueEl.textContent = routeBearing.toFixed(1) + "°";
 
         const rawDelta = normalizeDegrees(windDirectionFrom - routeBearing);
         const vector = windComponentFromRoute(windDirectionFrom, routeBearing);
@@ -429,7 +424,6 @@
 
       windInput.addEventListener("input", update);
       routeInput.addEventListener("input", update);
-      unitsSelect.addEventListener("change", update);
       bucketModeSelect.addEventListener("change", update);
       swapButton.addEventListener("click", () => {
         const windValue = windInput.value;
