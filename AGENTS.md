@@ -22,7 +22,7 @@
 - Route detection:
     - `collectTrackCandidates()` scans Leaflet layers for uploaded GPX/KML/GeoJSON routes and picks a best candidate.
 - Scoring pipeline (controller):
-    - Downsamples to `MAX_POINTS_FOR_COMPUTE`, computes elevation/wind, builds per-segment effort, and updates `uiState`.
+  - Elevation and weather results are cached in IndexedDB stores (`elevation`, `weather`) with TTL-based expiration managed by the controller.
     - Renders a colored overlay layer, then updates `routeGraphSegments` for the Svelte UI.
 - Caching:
     - Elevation results are cached in `localStorage` under `plugin-cycling-effort-elevation-cache`.
