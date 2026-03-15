@@ -1,6 +1,4 @@
-<!--<p class="subtitle">Weather + profile scoring for uploaded routes</p>-->
-
-<div>
+<div class="cycling-effort-panel" class:cycling-effort-panel-mobile={isMobile}>
     <div class="fg-yellow">
         Cycling effort{#if $uiState.hasRoute}: <span class="label"
                 ><strong class="size-m">{$uiState.totalEffort} points</strong></span
@@ -10,7 +8,6 @@
         <section class="effort-box fg-yellow mt-5 mb-5">
             <span class="size-xs">Weather impact: {$uiState.weatherImpact} points</span>
         </section>
-        <!-- tooltip--top data-tooltip="Total distance: {$uiState.distanceKm} km"-->
         <section class="route-graph-box mt-5 mb-5">
             {#if hasProfile}
                 <svg
@@ -141,16 +138,16 @@
             <!--tooltip--left data-tooltip="{$uiState.status}"-->
             <div
                 class="rhbottom__legend metric-legend mt-5 noselect"
-                style="padding: 0px 6px 0px 10px; border-radius: 20px; background: {legendGradient};"
+                style="background: {legendGradient};"
             >
-                <span style="width: 12.5%">Easier</span>
-                <span style="width: 12.5%"></span>
-                <span style="width: 12.5%"></span>
-                <span style="width: 12.5%"></span>
-                <span style="width: 12.5%"></span>
-                <span style="width: 12.5%"></span>
-                <span style="width: 12.5%">Harder</span>
-                <span style="width: 12.5%"></span>
+                <span>Easier</span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span>Harder</span>
+                <span></span>
             </div>
         </section>
     {/if}
@@ -179,6 +176,7 @@
 </script>
 
 <script>
+    import { isMobile } from '@windy/rootScope';
     import { effortLegendGradient } from './lib/windMath';
     import { uiState } from './lib/uiState';
 
@@ -233,10 +231,16 @@
         : '';
 </script>
 
-<style>
+<style lang="less">
     /* Style variables are used from the windy parent page */
     :global(#plugin-rhbottom .cycling-panel .stats-grid) {
         grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .cycling-effort-panel {
+        &.cycling-effort-panel-mobile {
+            padding: 30px 15px 15px;
+        }
     }
 
     /*.title-row {*/
@@ -270,72 +274,72 @@
         border: 1px solid rgba(255, 255, 255, 0.06);
         background: var(--color-background-primary);
         padding: 4px;
-    }
 
-    .route-graph {
-        width: 100%;
-        display: block;
-    }
+        .route-graph {
+            width: 100%;
+            display: block;
 
-    .graph-bg {
-        fill: rgba(255, 255, 255, 0.03);
-        stroke: rgba(255, 255, 255, 0.1);
-        stroke-width: 1;
-    }
+            .graph-bg {
+                fill: rgba(255, 255, 255, 0.03);
+                stroke: rgba(255, 255, 255, 0.1);
+                stroke-width: 1;
+            }
 
-    .grid-line {
-        stroke: rgba(255, 255, 255, 0.1);
-        stroke-width: 1;
-    }
+            .grid-line {
+                stroke: rgba(255, 255, 255, 0.1);
+                stroke-width: 1;
+            }
 
-    .grid-line-v {
-        stroke-dasharray: 3 3;
-    }
+            .grid-line-v {
+                stroke-dasharray: 3 3;
+            }
 
-    .profile-line {
-        fill: none;
-        stroke: rgba(255, 255, 255, 0.9);
-        stroke-width: 2.4;
-        stroke-linejoin: round;
-        stroke-linecap: round;
-    }
+            .profile-line {
+                fill: none;
+                stroke: rgba(255, 255, 255, 0.9);
+                stroke-width: 2.4;
+                stroke-linejoin: round;
+                stroke-linecap: round;
+            }
 
-    .profile-segment {
-        stroke-width: 2.4;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-    }
+            .profile-segment {
+                stroke-width: 2.4;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+            }
 
-    .axis-text {
-        fill: var(--color-yellow);
-        font-size: 9px;
-    }
+            .axis-text {
+                fill: var(--color-yellow);
+                font-size: 9px;
+            }
 
-    /*.axis-title {*/
-    /*    fill: var(--color-yellow);*/
-    /*    font-size: 10px;*/
-    /*    font-weight: 600;*/
-    /*}*/
+            /*.axis-title {*/
+            /*    fill: var(--color-yellow);*/
+            /*    font-size: 10px;*/
+            /*    font-weight: 600;*/
+            /*}*/
+        }
 
-    .graph-info {
-        display: flex;
-        align-items: left;
-        justify-content: flex-end;
-        gap: 5px;
-        margin-top: 2px;
-        margin-left: 18px;
-        color: var(--color-yellow);
-        font-size: 8px;
-        line-height: 1.1;
-    }
+        .graph-info {
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-end;
+            gap: 5px;
+            margin-top: 2px;
+            margin-left: 18px;
+            color: var(--color-yellow);
+            font-size: 8px;
+            line-height: 1.1;
 
-    .graph-info span {
-        opacity: 0.92;
-    }
+            span {
+                opacity: 0.92;
+            }
+        }
 
-    .graph-empty {
-        color: var(--color-yellow);
-        padding: 8px 4px;
+        .graph-empty {
+            color: var(--color-yellow);
+            padding: 8px 4px;
+        }
     }
 
     .invert-route-btn {
@@ -349,19 +353,12 @@
         margin-right: 2px;
     }
 
-    /*.invert-route-btn {*/
-    /*    background: none;*/
-    /*    border: none;*/
-    /*    color: var(--color-yellow);*/
-    /*    cursor: pointer;*/
-    /*    padding: 0 2px;*/
-    /*    font-size: 11px;*/
-    /*    line-height: 1;*/
-    /*    opacity: 0.8;*/
-    /*    margin-left: auto;*/
-    /*}*/
+    .metric-legend {
+        padding: 0 6px 0 10px;
+        border-radius: 20px;
 
-    /*.invert-route-btn span.iconfont {*/
-    /*    font-size: 16px;*/
-    /*}*/
+        > span {
+            width: 12.5%;
+        }
+    }
 </style>
