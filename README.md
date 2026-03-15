@@ -26,7 +26,7 @@ And thus colours should reflect this by using the entire range going from dark t
 
 ## Requirements
 
-- Node.js 18+
+- Node.js 20.19+ (or >= 22.12.0)
 
 ## Install
 
@@ -59,17 +59,17 @@ npm run build
 
 ## Wind Angle Debugger/Visualizer
 
-Use `wind-angle-visualizer.html` to experiment with wind direction vs route bearing and visualize the six buckets.
+Use `src/wind-angle-visualizer.html` to experiment with wind direction vs route bearing and visualize the six buckets.
 
 Quick open:
 
 ```zsh
-open wind-angle-visualizer.html
+open src/wind-angle-visualizer.html
 ```
 
 Notes:
 
-- Input can be degrees or radians.
+- Input must be in degrees (0–359.9).
 - The colored ring is aligned to the route bearing; arrows show route (blue) and wind-from (purple).
 - Interpolator is not used. Unfortunately, we need to fetch wind data instead of using the interpolated data. That interpolated data is not accurate enough for our purposes. Using it causes segments to flip the wind direction 180 degrees sometimes resulting in segment colours/data that do not make sense.
 
