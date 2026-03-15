@@ -3,23 +3,35 @@ import { getElevation, getPointForecastData } from '@windy/fetch';
 import { map } from '@windy/map';
 import store from '@windy/store';
 
-// @todo-wim windDirectionFrom: klopt niet soms, soms gezien als tailwind terwijl dat het niet is:
-// "Heading/Wind(from): 217° / 175°"
-// "Wind H/HC/TC/T/G: 0 / 0 / 0 / 5 / 0 m/s"
-
-// Soms lijkt de wind direction gewoon totaal niet te kloppen
-// Check waar windDirectionFrom vandaan komt, en check of ie wel goeie data pakt!
-
-//"Heading/Wind(from): 223° / 2°"
-//"Wind H/HC/TC/T/G: 7.3 / 0 / 0 / 0 / 0 m/s"
-
 import { patchUiState, resetUiState } from './uiState';
-import { normalizeDegrees, windComponentFromRoute } from './windMath';
+import {
+    bearingBetween,
+    blendedDomainWeights,
+    clamp,
+    colorForSegmentDifficulty,
+    haversineDistanceKm,
+    midpointBetween,
+    normalizeDegrees,
+    normalizeToUnit,
+    round,
+    safeNumber,
+    sampledIndices,
+    signed,
+    toPercent,
+    windComponentFromRoute,
+    ELEVATION_WEIGHT_BASELINE,
+    SEGMENT_COLOR_INTENSITY_MIX,
+    SEGMENT_EFFORT_MODIFIERS,
+    SEGMENT_EFFORT_NORMALIZATION_MIX,
+    SEGMENT_GRADIENT_FACTORS,
+    SEGMENT_NORMALIZATION_REFERENCES,
+    SEGMENT_WIND_FACTORS,
+    WEATHER_WEIGHT_BASELINE,
+    WEATHER_WEIGHT_PERCENTAGE,
+} from './windMath';
 
 const OVERLAY_CLASS = 'cycling-effort-overlay';
 const MAX_POINTS_FOR_COMPUTE = 500;
-// How heavy does the weather count towards effort relative to elevation change?
-const WEATHER_WEIGHT_PERCENTAGE = 75;
 // How many samples/api calls do we do as a maximum?
 // 10 samples/km = 1 sample every 100 metres.
 const MAX_ACCURATE_WIND_SAMPLES_PER_KM = 5;
@@ -29,92 +41,11 @@ const LOG_PREFIX = '🚴 [plugin-cycling-effort]';
 const STATUS_NO_FILE_LOADED =
     'Please select a route using "Menu" > "Display KML, GPX, or GeoJSON".';
 
-const EARTH_RADIUS_METERS = 6371000;
-const WEATHER_WEIGHT_BASELINE = WEATHER_WEIGHT_PERCENTAGE / 100;
-const ELEVATION_WEIGHT_BASELINE = 1 - WEATHER_WEIGHT_BASELINE;
-
-// Core static modifiers for effort behavior.
-const SEGMENT_EFFORT_MODIFIERS = Object.freeze({
-    baseEffortPerKm: 1.15,
-    climbEffortPerMeter: 0.052,
-    descentPenaltyPerMeter: 0.0025,
-    descentReliefPerMeter: 0.0065,
-    maxDownhillReliefShare: 0.28,
-    minEffortShareOfBase: 0.3,
-    headwindEffortPerMsPerKm: 0.52,
-    headCrosswindEffortPerMsPerKm: 0.34,
-    tailCrosswindReliefPerMsPerKm: 0.2,
-    tailwindReliefPerMsPerKm: 0.34,
-    maxTailwindReliefShare: 0.24,
-});
-
-// Positive/negative mountain-gradient influence on segment difficulty.
-const SEGMENT_GRADIENT_FACTORS = Object.freeze({
-    uphillDifficultyWeight: 1,
-    downhillDifficultyWeight: 0.18,
-    downhillReliefWeight: 0.62,
-});
-
-// Wind speed/gust/direction influence on segment difficulty.
-const SEGMENT_WIND_FACTORS = Object.freeze({
-    headwindDifficultyWeight: 1.25,
-    headCrosswindDifficultyWeight: 0.9,
-    tailCrosswindReliefWeight: 0.16,
-    gustDifficultyWeight: 0.68,
-    tailwindReliefWeight: 0.42,
-});
-
-// Relative influence of effort intensity, mountain gradient and wind in final score.
-const SEGMENT_FINAL_SCORE_WEIGHTS = Object.freeze({
-    effortIntensity: 0.24,
-    gradientDifficulty: 0.28,
-    windDifficulty: 0.48,
-});
-
-// Absolute references to avoid route-relative color skew on flat or mountainous tracks.
-const SEGMENT_NORMALIZATION_REFERENCES = Object.freeze({
-    effortPerKm: 7.2,
-    uphillSlopeMPerKm: 70,
-    downhillSlopeMPerKm: 90,
-    headwindSpeed: 7.5,
-    headCrosswindSpeed: 6.5,
-    tailCrosswindSpeed: 6.5,
-    tailwindSpeed: 8,
-    gustDeltaSpeed: 4.5,
-});
-
-const SEGMENT_EFFORT_NORMALIZATION_MIX = Object.freeze({
-    relative: 0.4,
-    absolute: 0.6,
-});
-
-const SEGMENT_COLOR_INTENSITY_MIX = Object.freeze({
-    weather: 0.7,
-    terrain: 0.3,
-});
-
 const ELEVATION_DB_NAME = 'windy-plugin-cycling-effort';
 const ELEVATION_STORE_NAME = 'elevation';
 const WEATHER_STORE_NAME = 'weather';
 const ELEVATION_TTL_MS = 2 * 30 * 24 * 60 * 60 * 1000; // ~2 months
 const WEATHER_TTL_MS = 30 * 60 * 1000; // 30 minutes
-
-// How much the weather slider shifts terrain-vs-weather contribution in final score.
-const SEGMENT_WEIGHT_BLEND = Object.freeze({
-    weatherSliderInfluence: 0.45,
-    minDomainWeight: 0.06,
-});
-
-const SEGMENT_COLOR_TUNING = Object.freeze({
-    baseSaturation: 48,
-    saturationBoost: 42,
-    baseLightness: 60,
-    lightnessDropFromIntensity: 22,
-    lightnessDropFromDifficulty: 10,
-    downhillLightnessLift: 4,
-    minLightness: 26,
-    maxLightness: 68,
-});
 
 const ENABLE_SEGMENT_DEBUG_TOOLTIP = false;
 const SHOW_SEGMENT_DEBUG_TOOLTIPS = ENABLE_SEGMENT_DEBUG_TOOLTIP;
@@ -131,13 +62,10 @@ const SEGMENT_DEBUG_POPUP_OPTIONS = Object.freeze({
     className: 'cycling-effort-debug-tooltip',
 });
 
-const safeNumber = value => {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : null;
-};
-
 const consoleLog = (message, level = 'info', ...data) => {
-    if (!DEBUG_LOGS && level === 'debug') return;
+    if (!DEBUG_LOGS && level === 'debug') {
+        return;
+    }
 
     const consoleMethod = (() => {
         switch (level) {
@@ -201,57 +129,6 @@ const consoleLog = (message, level = 'info', ...data) => {
     consoleMethod(`%c${LOG_PREFIX} `, css, message, ...data);
 };
 
-const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-const normalizeToUnit = (value, reference) => clamp(value / Math.max(1e-6, reference), 0, 1);
-
-const angularDistance = (a, b) => {
-    const raw = Math.abs(a - b) % 360;
-    return raw > 180 ? 360 - raw : raw;
-};
-
-const haversineDistanceKm = (start, end) => {
-    const lat1 = (start.lat * Math.PI) / 180;
-    const lon1 = (start.lon * Math.PI) / 180;
-    const lat2 = (end.lat * Math.PI) / 180;
-    const lon2 = (end.lon * Math.PI) / 180;
-
-    const dLat = lat2 - lat1;
-    const dLon = lon2 - lon1;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return (EARTH_RADIUS_METERS * c) / 1000;
-};
-
-const bearingBetween = (start, end) => {
-    const lat1 = (start.lat * Math.PI) / 180;
-    const lon1 = (start.lon * Math.PI) / 180;
-    const lat2 = (end.lat * Math.PI) / 180;
-    const lon2 = (end.lon * Math.PI) / 180;
-    const dLon = lon2 - lon1;
-
-    const y = Math.sin(dLon) * Math.cos(lat2);
-    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
-    return normalizeDegrees((Math.atan2(y, x) * 180) / Math.PI);
-};
-
-const midpointBetween = (start, end) => ({
-    lat: (start.lat + end.lat) / 2,
-    lon: (start.lon + end.lon) / 2,
-});
-
-const round = (value, decimals = 1) => {
-    const factor = 10 ** decimals;
-    return Math.round(value * factor) / factor;
-};
-
-const signed = (value, decimals = 1) => {
-    const numeric = safeNumber(value) ?? 0;
-    const rounded = round(numeric, decimals);
-    return `${rounded >= 0 ? '+' : ''}${rounded}`;
-};
-
-const toPercent = value => `${Math.round(clamp(value, 0, 1) * 100)}%`;
-
 const toKmSpan = segment =>
     `${round(Math.max(0, segment.cumulativeKm - segment.distanceKm), 2)}-${round(
         segment.cumulativeKm,
@@ -285,81 +162,6 @@ const formatSegmentDebugTooltipHtml = (segment, index) => {
     return `<div style="font-size:11px; line-height:1.35; min-width:${SEGMENT_DEBUG_TOOLTIP_MIN_WIDTH_PX}px; max-width:${SEGMENT_DEBUG_TOOLTIP_MAX_WIDTH_PX}px; white-space:normal;">${lines.join(
         '<br/>',
     )}</div>`;
-};
-
-const blendedDomainWeights = (weatherWeightPercent = WEATHER_WEIGHT_PERCENTAGE) => {
-    const weatherWeight = clamp(weatherWeightPercent / 100, 0, 1);
-    const sliderDelta = weatherWeight - WEATHER_WEIGHT_BASELINE;
-    const effortBase = SEGMENT_FINAL_SCORE_WEIGHTS.effortIntensity;
-    const terrainBase = SEGMENT_FINAL_SCORE_WEIGHTS.gradientDifficulty;
-    const weatherBase = SEGMENT_FINAL_SCORE_WEIGHTS.windDifficulty;
-    const terrainAdjusted = clamp(
-        terrainBase - sliderDelta * SEGMENT_WEIGHT_BLEND.weatherSliderInfluence,
-        SEGMENT_WEIGHT_BLEND.minDomainWeight,
-        1,
-    );
-    const weatherAdjusted = clamp(
-        weatherBase + sliderDelta * SEGMENT_WEIGHT_BLEND.weatherSliderInfluence,
-        SEGMENT_WEIGHT_BLEND.minDomainWeight,
-        1,
-    );
-    const sum = effortBase + terrainAdjusted + weatherAdjusted;
-    if (sum <= 1e-6) {
-        return { effort: 1 / 3, terrain: 1 / 3, weather: 1 / 3 };
-    }
-    return {
-        effort: effortBase / sum,
-        terrain: terrainAdjusted / sum,
-        weather: weatherAdjusted / sum,
-    };
-};
-
-const compositeSegmentDifficulty = ({
-    normalizedEffort = 0.5,
-    windDifficultyNorm = 0.5,
-    gradientDifficultyNorm = 0.5,
-    weatherWeightPercent = WEATHER_WEIGHT_PERCENTAGE,
-}) => {
-    const weights = blendedDomainWeights(weatherWeightPercent);
-    return clamp(
-        clamp(normalizedEffort, 0, 1) * weights.effort +
-            clamp(gradientDifficultyNorm, 0, 1) * weights.terrain +
-            clamp(windDifficultyNorm, 0, 1) * weights.weather,
-        0,
-        1,
-    );
-};
-
-const colorForSegmentDifficulty = (difficultyNorm, intensityNorm = 0.5, downhillReliefNorm = 0) => {
-    const difficulty = clamp(difficultyNorm, 0, 1);
-    const intensity = clamp(intensityNorm, 0, 1);
-    const downhillLift = clamp(downhillReliefNorm, 0, 1);
-    const hue = 120 * (1 - difficulty);
-    const saturation =
-        SEGMENT_COLOR_TUNING.baseSaturation + intensity * SEGMENT_COLOR_TUNING.saturationBoost;
-    const lightness = clamp(
-        SEGMENT_COLOR_TUNING.baseLightness -
-            intensity * SEGMENT_COLOR_TUNING.lightnessDropFromIntensity -
-            difficulty * SEGMENT_COLOR_TUNING.lightnessDropFromDifficulty +
-            downhillLift * SEGMENT_COLOR_TUNING.downhillLightnessLift,
-        SEGMENT_COLOR_TUNING.minLightness,
-        SEGMENT_COLOR_TUNING.maxLightness,
-    );
-    return `hsl(${Math.round(hue)}, ${Math.round(saturation)}%, ${Math.round(lightness)}%)`;
-};
-
-export const effortLegendStops = (weatherWeightPercent = WEATHER_WEIGHT_PERCENTAGE) => {
-    const clampedWeight = clamp(Number(weatherWeightPercent) || WEATHER_WEIGHT_PERCENTAGE, 0, 100);
-    return Array.from({ length: 11 }, (_unused, index) => {
-        const t = index / 10;
-        const intensityNorm = clamp(0.15 + Math.abs(t - 0.5) * 1.7, 0, 1);
-        return colorForSegmentDifficulty(t, intensityNorm, 0);
-    });
-};
-
-export const effortLegendGradient = (weatherWeightPercent = WEATHER_WEIGHT_PERCENTAGE) => {
-    const stops = effortLegendStops(weatherWeightPercent);
-    return `linear-gradient(to right, ${stops.join(', ')})`;
 };
 
 const flattenLatLngArray = (latLngs, output = []) => {
@@ -614,7 +416,9 @@ const cleanStaleRows = (db, storeName, ttlMs) => {
             .openCursor(IDBKeyRange.upperBound(cutoff));
         req.onsuccess = () => {
             const cursor = req.result;
-            if (!cursor) return;
+            if (!cursor) {
+                return;
+            }
             cursor.delete();
             cursor.continue();
         };
@@ -631,8 +435,12 @@ const getElevationFromDB = (db, key) =>
             .get(key);
         req.onsuccess = () => {
             const row = req.result;
-            if (!row) return resolve(null);
-            if (Date.now() - row.storedAt > ELEVATION_TTL_MS) return resolve(null);
+            if (!row) {
+                return resolve(null);
+            }
+            if (Date.now() - row.storedAt > ELEVATION_TTL_MS) {
+                return resolve(null);
+            }
             resolve(row.value);
         };
         req.onerror = () => resolve(null);
@@ -656,8 +464,12 @@ const getWeatherFromDB = (db, key) =>
             .get(key);
         req.onsuccess = () => {
             const row = req.result;
-            if (!row) return resolve(null);
-            if (Date.now() - row.storedAt > WEATHER_TTL_MS) return resolve(null);
+            if (!row) {
+                return resolve(null);
+            }
+            if (Date.now() - row.storedAt > WEATHER_TTL_MS) {
+                return resolve(null);
+            }
             resolve(row.value);
         };
         req.onerror = () => resolve(null);
@@ -685,52 +497,6 @@ const clearElevationDB = async db => {
     } catch (_e) {
         // Ignore storage errors
     }
-};
-
-const summarizeInterpolatedValue = value => {
-    if (value == null) {
-        return value;
-    }
-    if (typeof value === 'number') {
-        return value;
-    }
-    if (Array.isArray(value)) {
-        return {
-            type: 'array',
-            len: value.length,
-            head: value.slice(0, 5),
-        };
-    }
-    if (typeof value === 'object') {
-        const keys = Object.keys(value).slice(0, 10);
-        const sample = {};
-        for (const key of ['u', 'v', 'ws', 'wd', 'speed', 'direction', 'value']) {
-            if (value[key] != null) {
-                sample[key] = value[key];
-            }
-        }
-        return {
-            type: 'object',
-            keys,
-            sample,
-        };
-    }
-    return String(value);
-};
-
-const sampledIndices = (length, maxSamples) => {
-    if (length <= 0) {
-        return [];
-    }
-    if (length <= maxSamples) {
-        return Array.from({ length }, (_, idx) => idx);
-    }
-    const indices = new Set([0, length - 1]);
-    const step = (length - 1) / (maxSamples - 1);
-    for (let i = 1; i < maxSamples - 1; i += 1) {
-        indices.add(Math.round(i * step));
-    }
-    return [...indices].sort((a, b) => a - b);
 };
 
 class CyclingEffortController {
@@ -870,7 +636,9 @@ class CyclingEffortController {
     async removeCaches() {
         consoleLog('Removing locally cached data', 'info');
         const db = await this.elevationDB;
-        if (db) clearElevationDB(db);
+        if (db) {
+            clearElevationDB(db);
+        }
     }
 
     onLayerMutation(evt) {
@@ -1279,7 +1047,9 @@ class CyclingEffortController {
                         );
                         if (wind != null) {
                             windMap.set(locKey, wind);
-                            if (db) putWeatherInDB(db, dbKey, wind);
+                            if (db) {
+                                putWeatherInDB(db, dbKey, wind);
+                            }
                         }
                     } catch (_error) {
                         // Ignore failed fetches; sampler will fall back to zero wind for this point.
@@ -1436,7 +1206,7 @@ class CyclingEffortController {
         let elevationImpact = 0;
         let cumulativeKm = 0;
         let windSampleCount = 0;
-        let elevationPointCount = pointsWithElevation.reduce(
+        const elevationPointCount = pointsWithElevation.reduce(
             (count, point) => count + (point.ele != null ? 1 : 0),
             0,
         );
@@ -1982,17 +1752,16 @@ class CyclingEffortController {
             if (typeof polyline.bringToFront === 'function') {
                 polyline.bringToFront();
             }
-            if (index === 0) {
-                const pathStroke = polyline._path?.getAttribute?.('stroke');
+            // if (index === 0) {
                 // consoleLog("renderSegments first-layer", "debug", {
                 //   requestedColor: segment.color,
                 //   effectiveOptionColor: polyline.options?.color,
-                //   domStroke: pathStroke ?? null,
+                //   domStroke: polyline._path?.getAttribute?.('stroke') ?? null,
                 //   weight: polyline.options?.weight,
                 //   pane: polyline.options?.pane,
                 //   className: polyline.options?.className,
                 // });
-            }
+            // }
         }
         // consoleLog("renderSegments completed", "debug", {
         //   segmentCount: segments.length,

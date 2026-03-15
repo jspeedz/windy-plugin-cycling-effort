@@ -179,7 +179,7 @@
 </script>
 
 <script>
-    import { effortLegendGradient } from './lib/cyclingEffortController';
+    import { effortLegendGradient } from './lib/windMath';
     import { uiState } from './lib/uiState';
 
     const handleInvertRoute = () => controller.invertRoute();
