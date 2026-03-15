@@ -23,8 +23,8 @@
 - Route detection:
     - `collectTrackCandidates()` scans Leaflet layers for uploaded GPX/KML/GeoJSON routes and picks a best candidate.
 - Scoring pipeline (controller):
-  - Elevation and weather results are cached in IndexedDB stores (`elevation`, `weather`) with TTL-based expiration managed by the controller.
-    - Renders a colored overlay layer, then updates `routeGraphSegments` for the Svelte UI.
+    - Elevation and weather results are cached in IndexedDB stores (`elevation`, `weather`) with TTL-based expiration managed by the controller.
+        - Renders a colored overlay layer, then updates `routeGraphSegments` for the Svelte UI.
 - Caching:
     - Elevation and weather results are cached in IndexedDB stores (`elevation`, `weather`) with TTL-based expiration managed by the controller.
 

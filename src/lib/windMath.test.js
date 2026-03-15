@@ -241,8 +241,14 @@ describe('bearingBetween', () => {
 
     it('always returns a value in [0, 360)', () => {
         const cases = [
-            [{ lat: 10, lon: 20 }, { lat: 30, lon: 40 }],
-            [{ lat: -30, lon: 150 }, { lat: 60, lon: -120 }],
+            [
+                { lat: 10, lon: 20 },
+                { lat: 30, lon: 40 },
+            ],
+            [
+                { lat: -30, lon: 150 },
+                { lat: 60, lon: -120 },
+            ],
         ];
         for (const [s, e] of cases) {
             const b = bearingBetween(s, e);

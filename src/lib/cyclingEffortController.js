@@ -1753,14 +1753,14 @@ class CyclingEffortController {
                 polyline.bringToFront();
             }
             // if (index === 0) {
-                // consoleLog("renderSegments first-layer", "debug", {
-                //   requestedColor: segment.color,
-                //   effectiveOptionColor: polyline.options?.color,
-                //   domStroke: polyline._path?.getAttribute?.('stroke') ?? null,
-                //   weight: polyline.options?.weight,
-                //   pane: polyline.options?.pane,
-                //   className: polyline.options?.className,
-                // });
+            // consoleLog("renderSegments first-layer", "debug", {
+            //   requestedColor: segment.color,
+            //   effectiveOptionColor: polyline.options?.color,
+            //   domStroke: polyline._path?.getAttribute?.('stroke') ?? null,
+            //   weight: polyline.options?.weight,
+            //   pane: polyline.options?.pane,
+            //   className: polyline.options?.className,
+            // });
             // }
         }
         // consoleLog("renderSegments completed", "debug", {

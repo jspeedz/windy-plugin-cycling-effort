@@ -335,7 +335,11 @@ export const compositeSegmentDifficulty = ({
  * @param {number} [downhillReliefNorm=0]
  * @returns {string}
  */
-export const colorForSegmentDifficulty = (difficultyNorm, intensityNorm = 0.5, downhillReliefNorm = 0) => {
+export const colorForSegmentDifficulty = (
+    difficultyNorm,
+    intensityNorm = 0.5,
+    downhillReliefNorm = 0,
+) => {
     const difficulty = clamp(difficultyNorm, 0, 1);
     const intensity = clamp(intensityNorm, 0, 1);
     const downhillLift = clamp(downhillReliefNorm, 0, 1);
@@ -355,10 +359,9 @@ export const colorForSegmentDifficulty = (difficultyNorm, intensityNorm = 0.5, d
 
 /**
  * Generates an array of 11 HSL color stops for the effort legend.
- * @param {number} [weatherWeightPercent]
  * @returns {string[]}
  */
-export const effortLegendStops = (weatherWeightPercent = WEATHER_WEIGHT_PERCENTAGE) => {
+export const effortLegendStops = () => {
     return Array.from({ length: 11 }, (_unused, index) => {
         const t = index / 10;
         const intensityNorm = clamp(0.15 + Math.abs(t - 0.5) * 1.7, 0, 1);
@@ -368,10 +371,9 @@ export const effortLegendStops = (weatherWeightPercent = WEATHER_WEIGHT_PERCENTA
 
 /**
  * Generates a CSS linear-gradient string for the effort legend.
- * @param {number} [weatherWeightPercent]
  * @returns {string}
  */
-export const effortLegendGradient = (weatherWeightPercent = WEATHER_WEIGHT_PERCENTAGE) => {
-    const stops = effortLegendStops(weatherWeightPercent);
+export const effortLegendGradient = () => {
+    const stops = effortLegendStops();
     return `linear-gradient(to right, ${stops.join(', ')})`;
 };
