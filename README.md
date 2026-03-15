@@ -77,8 +77,8 @@ Notes:
 ## Production deployment
 
 The direct file after deploying a new version of the plugin can be found here:
-https://windy-plugins.com/9417045/windy-plugin-cycling-effort/0.1.0/plugin.min.js
-Just replace the version number with the correct one.
+https://windy-plugins.com/9417045/windy-plugin-cycling-effort/<version>/plugin.min.js
+Replace `<version>` with the plugin version you want to load (for example, the current version from `package.json`).
 
 ## Documentation sources
 
