@@ -58,7 +58,7 @@ export default {
     external: id => id.startsWith('@windy/'),
     output: {
         file: `dist/plugin.min.js`,
-        format: 'module',
+        format: 'es',
         sourcemap: useSourceMaps,
         plugins: [terser()],
         globals: {
