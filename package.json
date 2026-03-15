@@ -15,7 +15,7 @@
     "bugs": {
         "url": "https://github.com/jspeedz/windy-plugin-cycling-effort/issues"
     },
-    "version": "0.1.0",
+    "version": "0.1.1",
     "type": "module",
     "license": "ISC",
     "private": true,
