@@ -23,8 +23,7 @@ export const defaultUiState = {
 
 export const uiState = writable({ ...defaultUiState });
 
-export const patchUiState = partial =>
-    uiState.update(current => ({ ...current, ...partial }));
+export const patchUiState = partial => uiState.update(current => ({ ...current, ...partial }));
 
 export const resetUiState = () => {
     uiState.set({ ...defaultUiState });

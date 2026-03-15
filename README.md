@@ -3,6 +3,7 @@
 Windy.com plugin that evaluates cycling trip effort/difficulty for uploaded GPX/KML/GeoJSON route tracks.
 
 Factors affecting effort which are evaluated:
+
 - Route length
 - Elevation profile (ascent/descent)
 - Wind speed, gust speed, and wind direction relative to route direction based on the current selected windy.com weather model weather predictions.
@@ -67,6 +68,7 @@ open wind-angle-debug.html
 ```
 
 Notes:
+
 - Input can be degrees or radians.
 - The colored ring is aligned to the route bearing; arrows show route (blue) and wind-from (purple).
 - Interpolator is not used. Unfortunately, we need to fetch wind data instead of using the interpolated data. This that data is not accurate enough for our purposes. Using it causes segments to flip the wind direction 180 degrees sometimes resulting in segment colours/data that does not make sense.

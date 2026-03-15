@@ -1,438 +1,484 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Wind Angle Visualizer</title>
-    <style>
-      :root {
-        color-scheme: light dark;
-      }
-      body {
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-        margin: 24px;
-        line-height: 1.4;
-      }
-      main {
-        max-width: 980px;
-        margin: 0 auto;
-      }
-      h1 {
-        margin-bottom: 8px;
-      }
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 16px;
-        margin-top: 16px;
-      }
-      label {
-        display: block;
-        font-weight: 600;
-        margin-bottom: 6px;
-      }
-      input[type="number"],
-      select {
-        width: 100%;
-        padding: 8px 10px;
-        font-size: 14px;
-        box-sizing: border-box;
-      }
-      .slider-group {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .slider-group input[type="range"] {
-        flex: 1;
-      }
-      .slider-group .slider-value {
-        min-width: 42px;
-        text-align: right;
-        font-variant-numeric: tabular-nums;
-        font-size: 14px;
-      }
-      .output {
-        margin-top: 24px;
-        padding: 12px;
-        border-radius: 8px;
-        border: 1px solid rgba(120, 120, 120, 0.4);
-        background: rgba(120, 120, 120, 0.08);
-      }
-      .row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-      }
-      .row span {
-        min-width: 190px;
-      }
-      .bucket {
-        font-weight: 700;
-      }
-      .note {
-        font-size: 13px;
-        opacity: 0.75;
-      }
-      button {
-        padding: 8px 12px;
-        font-size: 14px;
-        cursor: pointer;
-      }
-      .viz {
-        margin-top: 20px;
-        display: grid;
-        grid-template-columns: minmax(240px, 420px) 1fr;
-        gap: 16px;
-        align-items: start;
-      }
-      canvas {
-        width: 100%;
-        max-width: 420px;
-        height: auto;
-        background: rgba(120, 120, 120, 0.04);
-        border: 1px solid rgba(120, 120, 120, 0.3);
-        border-radius: 12px;
-      }
-      .legend {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 10px;
-      }
-      .legend-item {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 13px;
-      }
-      .swatch {
-        width: 16px;
-        height: 16px;
-        border-radius: 4px;
-        border: 1px solid rgba(0, 0, 0, 0.2);
-      }
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>Wind / Route Angle Visualizer</h1>
-      <p class="note">
-        Enter a wind direction (from) and a route bearing. The logic matches
-        the plugin's wind bucket rules.
-      </p>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Wind Angle Visualizer</title>
+        <style>
+            :root {
+                color-scheme: light dark;
+            }
+            body {
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    Segoe UI,
+                    Roboto,
+                    Helvetica,
+                    Arial,
+                    sans-serif;
+                margin: 24px;
+                line-height: 1.4;
+            }
+            main {
+                max-width: 980px;
+                margin: 0 auto;
+            }
+            h1 {
+                margin-bottom: 8px;
+            }
+            .grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                gap: 16px;
+                margin-top: 16px;
+            }
+            label {
+                display: block;
+                font-weight: 600;
+                margin-bottom: 6px;
+            }
+            input[type='number'],
+            select {
+                width: 100%;
+                padding: 8px 10px;
+                font-size: 14px;
+                box-sizing: border-box;
+            }
+            .slider-group {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .slider-group input[type='range'] {
+                flex: 1;
+            }
+            .slider-group .slider-value {
+                min-width: 42px;
+                text-align: right;
+                font-variant-numeric: tabular-nums;
+                font-size: 14px;
+            }
+            .output {
+                margin-top: 24px;
+                padding: 12px;
+                border-radius: 8px;
+                border: 1px solid rgba(120, 120, 120, 0.4);
+                background: rgba(120, 120, 120, 0.08);
+            }
+            .row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 12px;
+            }
+            .row span {
+                min-width: 190px;
+            }
+            .bucket {
+                font-weight: 700;
+            }
+            .note {
+                font-size: 13px;
+                opacity: 0.75;
+            }
+            button {
+                padding: 8px 12px;
+                font-size: 14px;
+                cursor: pointer;
+            }
+            .viz {
+                margin-top: 20px;
+                display: grid;
+                grid-template-columns: minmax(240px, 420px) 1fr;
+                gap: 16px;
+                align-items: start;
+            }
+            canvas {
+                width: 100%;
+                max-width: 420px;
+                height: auto;
+                background: rgba(120, 120, 120, 0.04);
+                border: 1px solid rgba(120, 120, 120, 0.3);
+                border-radius: 12px;
+            }
+            .legend {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                gap: 10px;
+            }
+            .legend-item {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 13px;
+            }
+            .swatch {
+                width: 16px;
+                height: 16px;
+                border-radius: 4px;
+                border: 1px solid rgba(0, 0, 0, 0.2);
+            }
+        </style>
+    </head>
+    <body>
+        <main>
+            <h1>Wind / Route Angle Visualizer</h1>
+            <p class="note">
+                Enter a wind direction (from) and a route bearing. The logic matches the plugin's
+                wind bucket rules.
+            </p>
 
-      <div class="grid">
-        <div>
-          <label for="windDirection">Wind direction (from)</label>
-          <div class="slider-group">
-            <input id="windDirection" type="range" min="0" max="359.9" step="0.1" value="300" />
-            <span class="slider-value" id="windValue">300°</span>
-          </div>
-        </div>
-        <div>
-          <label for="routeBearing">Route bearing</label>
-          <div class="slider-group">
-            <input id="routeBearing" type="range" min="0" max="359.9" step="0.1" value="240" />
-            <span class="slider-value" id="routeValue">240°</span>
-          </div>
-        </div>
-        <div>
-          <label>&nbsp;</label>
-          <button id="swap">Swap Wind/Route</button>
-        </div>
-      </div>
+            <div class="grid">
+                <div>
+                    <label for="windDirection">Wind direction (from)</label>
+                    <div class="slider-group">
+                        <input
+                            id="windDirection"
+                            type="range"
+                            min="0"
+                            max="359.9"
+                            step="0.1"
+                            value="300"
+                        />
+                        <span class="slider-value" id="windValue">300°</span>
+                    </div>
+                </div>
+                <div>
+                    <label for="routeBearing">Route bearing</label>
+                    <div class="slider-group">
+                        <input
+                            id="routeBearing"
+                            type="range"
+                            min="0"
+                            max="359.9"
+                            step="0.1"
+                            value="240"
+                        />
+                        <span class="slider-value" id="routeValue">240°</span>
+                    </div>
+                </div>
+                <div>
+                    <label>&nbsp;</label>
+                    <button id="swap">Swap Wind/Route</button>
+                </div>
+            </div>
 
-      <div class="grid">
-        <div>
-          <label for="bucketMode">Bucket ring</label>
-          <select id="bucketMode">
-            <option value="north">Fixed to north</option>
-            <option value="route" selected>Relative to route</option>
-          </select>
-        </div>
-      </div>
+            <div class="grid">
+                <div>
+                    <label for="bucketMode">Bucket ring</label>
+                    <select id="bucketMode">
+                        <option value="north">Fixed to north</option>
+                        <option value="route" selected>Relative to route</option>
+                    </select>
+                </div>
+            </div>
 
-      <div class="viz">
-        <canvas id="compass" width="420" height="420" aria-label="Wind bucket visualization"></canvas>
-        <div>
-          <div class="legend">
-            <div class="legend-item"><span class="swatch" style="background:#c62828"></span>Headwind (90°)</div>
-            <div class="legend-item"><span class="swatch" style="background:#ef6c00"></span>Head crosswind (45°)</div>
-            <div class="legend-item"><span class="swatch" style="background:#fbc02d"></span>Tail crosswind (45°)</div>
-            <div class="legend-item"><span class="swatch" style="background:#2e7d32"></span>Tailwind (90°)</div>
-            <div class="legend-item"><span class="swatch" style="background:#1976d2"></span>Route bearing</div>
-            <div class="legend-item"><span class="swatch" style="background:#7b1fa2"></span>Wind direction (to)</div>
-          </div>
-          <p class="note" style="margin-top: 12px;" id="bucketNote">
-            Buckets are aligned to the route bearing. Arrows show the route bearing (blue)
-            and wind-from direction (purple).
-          </p>
-        </div>
-      </div>
+            <div class="viz">
+                <canvas
+                    id="compass"
+                    width="420"
+                    height="420"
+                    aria-label="Wind bucket visualization"
+                ></canvas>
+                <div>
+                    <div class="legend">
+                        <div class="legend-item">
+                            <span class="swatch" style="background: #c62828"></span>Headwind (90°)
+                        </div>
+                        <div class="legend-item">
+                            <span class="swatch" style="background: #ef6c00"></span>Head crosswind
+                            (45°)
+                        </div>
+                        <div class="legend-item">
+                            <span class="swatch" style="background: #fbc02d"></span>Tail crosswind
+                            (45°)
+                        </div>
+                        <div class="legend-item">
+                            <span class="swatch" style="background: #2e7d32"></span>Tailwind (90°)
+                        </div>
+                        <div class="legend-item">
+                            <span class="swatch" style="background: #1976d2"></span>Route bearing
+                        </div>
+                        <div class="legend-item">
+                            <span class="swatch" style="background: #7b1fa2"></span>Wind direction
+                            (to)
+                        </div>
+                    </div>
+                    <p class="note" style="margin-top: 12px" id="bucketNote">
+                        Buckets are aligned to the route bearing. Arrows show the route bearing
+                        (blue) and wind-from direction (purple).
+                    </p>
+                </div>
+            </div>
 
-      <div class="output" id="output">
-        <div class="row">
-          <span>rawDelta: <strong id="rawDelta">-</strong></span>
-          <span>angleFromRoute: <strong id="angleFromRoute">-</strong></span>
-          <span>absoluteAngle: <strong id="absoluteAngle">-</strong></span>
-        </div>
-        <div class="row">
-          <span>Headwind: <strong id="headwind">-</strong></span>
-          <span>Head Crosswind: <strong id="headCrosswind">-</strong></span>
-          <span>Tail Crosswind: <strong id="tailCrosswind">-</strong></span>
-          <span>Tailwind: <strong id="tailwind">-</strong></span>
-        </div>
-        <div class="row">
-          <span>Bucket: <strong class="bucket" id="bucket">-</strong></span>
-        </div>
-      </div>
-    </main>
+            <div class="output" id="output">
+                <div class="row">
+                    <span>rawDelta: <strong id="rawDelta">-</strong></span>
+                    <span>angleFromRoute: <strong id="angleFromRoute">-</strong></span>
+                    <span>absoluteAngle: <strong id="absoluteAngle">-</strong></span>
+                </div>
+                <div class="row">
+                    <span>Headwind: <strong id="headwind">-</strong></span>
+                    <span>Head Crosswind: <strong id="headCrosswind">-</strong></span>
+                    <span>Tail Crosswind: <strong id="tailCrosswind">-</strong></span>
+                    <span>Tailwind: <strong id="tailwind">-</strong></span>
+                </div>
+                <div class="row">
+                    <span>Bucket: <strong class="bucket" id="bucket">-</strong></span>
+                </div>
+            </div>
+        </main>
 
-    <script>
-      const windInput = document.getElementById("windDirection");
-      const routeInput = document.getElementById("routeBearing");
-      const windValueEl = document.getElementById("windValue");
-      const routeValueEl = document.getElementById("routeValue");
-      const bucketModeSelect = document.getElementById("bucketMode");
-      const swapButton = document.getElementById("swap");
-      const canvas = document.getElementById("compass");
-      const ctx = canvas.getContext("2d");
+        <script>
+            const windInput = document.getElementById('windDirection');
+            const routeInput = document.getElementById('routeBearing');
+            const windValueEl = document.getElementById('windValue');
+            const routeValueEl = document.getElementById('routeValue');
+            const bucketModeSelect = document.getElementById('bucketMode');
+            const swapButton = document.getElementById('swap');
+            const canvas = document.getElementById('compass');
+            const ctx = canvas.getContext('2d');
 
-      const rawDeltaEl = document.getElementById("rawDelta");
-      const angleFromRouteEl = document.getElementById("angleFromRoute");
-      const absoluteAngleEl = document.getElementById("absoluteAngle");
-      const headwindEl = document.getElementById("headwind");
-      const headCrosswindEl = document.getElementById("headCrosswind");
-      const tailCrosswindEl = document.getElementById("tailCrosswind");
-      const tailwindEl = document.getElementById("tailwind");
-      const bucketEl = document.getElementById("bucket");
-      const bucketNoteEl = document.getElementById("bucketNote");
+            const rawDeltaEl = document.getElementById('rawDelta');
+            const angleFromRouteEl = document.getElementById('angleFromRoute');
+            const absoluteAngleEl = document.getElementById('absoluteAngle');
+            const headwindEl = document.getElementById('headwind');
+            const headCrosswindEl = document.getElementById('headCrosswind');
+            const tailCrosswindEl = document.getElementById('tailCrosswind');
+            const tailwindEl = document.getElementById('tailwind');
+            const bucketEl = document.getElementById('bucket');
+            const bucketNoteEl = document.getElementById('bucketNote');
 
-      const COLORS = {
-        headwind: "#c62828",
-        headCrosswind: "#ef6c00",
-        tailCrosswind: "#fbc02d",
-        tailwind: "#2e7d32",
-        route: "#1976d2",
-        wind: "#7b1fa2",
-        grid: "rgba(120,120,120,0.4)",
-      };
+            const COLORS = {
+                headwind: '#c62828',
+                headCrosswind: '#ef6c00',
+                tailCrosswind: '#fbc02d',
+                tailwind: '#2e7d32',
+                route: '#1976d2',
+                wind: '#7b1fa2',
+                grid: 'rgba(120,120,120,0.4)',
+            };
 
-      const normalizeDegrees = (degrees) => {
-        const normalized = degrees % 360;
-        return normalized < 0 ? normalized + 360 : normalized;
-      };
+            const normalizeDegrees = degrees => {
+                const normalized = degrees % 360;
+                return normalized < 0 ? normalized + 360 : normalized;
+            };
 
-      const compassRad = (degrees) => {
-        const normalized = normalizeDegrees(degrees);
-        return ((normalized - 90) * Math.PI) / 180;
-      };
+            const compassRad = degrees => {
+                const normalized = normalizeDegrees(degrees);
+                return ((normalized - 90) * Math.PI) / 180;
+            };
 
-      const drawArc = (startDeg, endDeg, color, radius, width) => {
-        const start = normalizeDegrees(startDeg);
-        const end = normalizeDegrees(endDeg);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = width;
-        ctx.lineCap = "round";
+            const drawArc = (startDeg, endDeg, color, radius, width) => {
+                const start = normalizeDegrees(startDeg);
+                const end = normalizeDegrees(endDeg);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = width;
+                ctx.lineCap = 'round';
 
-        const drawSegment = (from, to) => {
-          ctx.beginPath();
-          ctx.arc(0, 0, radius, compassRad(from), compassRad(to), false);
-          ctx.stroke();
-        };
+                const drawSegment = (from, to) => {
+                    ctx.beginPath();
+                    ctx.arc(0, 0, radius, compassRad(from), compassRad(to), false);
+                    ctx.stroke();
+                };
 
-        if (start <= end) {
-          drawSegment(start, end);
-        } else {
-          drawSegment(start, 360);
-          drawSegment(0, end);
-        }
-      };
+                if (start <= end) {
+                    drawSegment(start, end);
+                } else {
+                    drawSegment(start, 360);
+                    drawSegment(0, end);
+                }
+            };
 
-      const drawArrow = (degrees, color, length, { fullDiameter = false } = {}) => {
-        const rad = compassRad(degrees);
-        ctx.strokeStyle = color;
-        ctx.fillStyle = color;
-        ctx.lineWidth = 3;
-        const startX = fullDiameter ? Math.cos(rad + Math.PI) * length : 0;
-        const startY = fullDiameter ? Math.sin(rad + Math.PI) * length : 0;
-        ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(Math.cos(rad) * length, Math.sin(rad) * length);
-        ctx.stroke();
+            const drawArrow = (degrees, color, length, { fullDiameter = false } = {}) => {
+                const rad = compassRad(degrees);
+                ctx.strokeStyle = color;
+                ctx.fillStyle = color;
+                ctx.lineWidth = 3;
+                const startX = fullDiameter ? Math.cos(rad + Math.PI) * length : 0;
+                const startY = fullDiameter ? Math.sin(rad + Math.PI) * length : 0;
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(Math.cos(rad) * length, Math.sin(rad) * length);
+                ctx.stroke();
 
-        const headSize = 8;
-        const headAngle = Math.PI / 6;
-        const tipX = Math.cos(rad) * length;
-        const tipY = Math.sin(rad) * length;
-        ctx.beginPath();
-        ctx.moveTo(tipX, tipY);
-        ctx.lineTo(
-          tipX - Math.cos(rad - headAngle) * headSize,
-          tipY - Math.sin(rad - headAngle) * headSize,
-        );
-        ctx.lineTo(
-          tipX - Math.cos(rad + headAngle) * headSize,
-          tipY - Math.sin(rad + headAngle) * headSize,
-        );
-        ctx.closePath();
-        ctx.fill();
-      };
+                const headSize = 8;
+                const headAngle = Math.PI / 6;
+                const tipX = Math.cos(rad) * length;
+                const tipY = Math.sin(rad) * length;
+                ctx.beginPath();
+                ctx.moveTo(tipX, tipY);
+                ctx.lineTo(
+                    tipX - Math.cos(rad - headAngle) * headSize,
+                    tipY - Math.sin(rad - headAngle) * headSize,
+                );
+                ctx.lineTo(
+                    tipX - Math.cos(rad + headAngle) * headSize,
+                    tipY - Math.sin(rad + headAngle) * headSize,
+                );
+                ctx.closePath();
+                ctx.fill();
+            };
 
-      const windComponentFromRoute = (windDirectionFrom, routeBearing) => {
-        if (windDirectionFrom == null) {
-          return {
-            headwind: 0,
-            headCrosswind: 0,
-            tailCrosswind: 0,
-            tailwind: 0,
-            angleFromRoute: 0,
-          };
-        }
+            const windComponentFromRoute = (windDirectionFrom, routeBearing) => {
+                if (windDirectionFrom == null) {
+                    return {
+                        headwind: 0,
+                        headCrosswind: 0,
+                        tailCrosswind: 0,
+                        tailwind: 0,
+                        angleFromRoute: 0,
+                    };
+                }
 
-        const rawDelta = normalizeDegrees(windDirectionFrom - routeBearing);
-        const angleFromRoute = rawDelta > 180 ? rawDelta - 360 : rawDelta;
-        const absoluteAngle = Math.abs(angleFromRoute);
+                const rawDelta = normalizeDegrees(windDirectionFrom - routeBearing);
+                const angleFromRoute = rawDelta > 180 ? rawDelta - 360 : rawDelta;
+                const absoluteAngle = Math.abs(angleFromRoute);
 
-        if (absoluteAngle <= 45) {
-          return {
-            headwind: 1,
-            headCrosswind: 0,
-            tailCrosswind: 0,
-            tailwind: 0,
-            angleFromRoute,
-          };
-        }
-        if (absoluteAngle <= 90) {
-          return {
-            headwind: 0,
-            headCrosswind: 1,
-            tailCrosswind: 0,
-            tailwind: 0,
-            angleFromRoute,
-          };
-        }
-        if (absoluteAngle <= 135) {
-          return {
-            headwind: 0,
-            headCrosswind: 0,
-            tailCrosswind: 1,
-            tailwind: 0,
-            angleFromRoute,
-          };
-        }
-        return {
-          headwind: 0,
-          headCrosswind: 0,
-          tailCrosswind: 0,
-          tailwind: 1,
-          angleFromRoute,
-        };
-      };
+                if (absoluteAngle <= 45) {
+                    return {
+                        headwind: 1,
+                        headCrosswind: 0,
+                        tailCrosswind: 0,
+                        tailwind: 0,
+                        angleFromRoute,
+                    };
+                }
+                if (absoluteAngle <= 90) {
+                    return {
+                        headwind: 0,
+                        headCrosswind: 1,
+                        tailCrosswind: 0,
+                        tailwind: 0,
+                        angleFromRoute,
+                    };
+                }
+                if (absoluteAngle <= 135) {
+                    return {
+                        headwind: 0,
+                        headCrosswind: 0,
+                        tailCrosswind: 1,
+                        tailwind: 0,
+                        angleFromRoute,
+                    };
+                }
+                return {
+                    headwind: 0,
+                    headCrosswind: 0,
+                    tailCrosswind: 0,
+                    tailwind: 1,
+                    angleFromRoute,
+                };
+            };
 
-      const format = (value) => (Number.isFinite(value) ? value.toFixed(1) : "-");
+            const format = value => (Number.isFinite(value) ? value.toFixed(1) : '-');
 
-      const drawVisualization = (routeBearing, windDirectionFrom) => {
-        const size = canvas.width;
-        ctx.clearRect(0, 0, size, size);
-        ctx.save();
-        ctx.translate(size / 2, size / 2);
+            const drawVisualization = (routeBearing, windDirectionFrom) => {
+                const size = canvas.width;
+                ctx.clearRect(0, 0, size, size);
+                ctx.save();
+                ctx.translate(size / 2, size / 2);
 
-        const ringRadius = size * 0.36;
-        const ringWidth = size * 0.08;
-        const gridRadius = size * 0.38;
+                const ringRadius = size * 0.36;
+                const ringWidth = size * 0.08;
+                const gridRadius = size * 0.38;
 
-        ctx.strokeStyle = COLORS.grid;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(0, 0, gridRadius, 0, Math.PI * 2);
-        ctx.stroke();
+                ctx.strokeStyle = COLORS.grid;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(0, 0, gridRadius, 0, Math.PI * 2);
+                ctx.stroke();
 
-        for (let i = 0; i < 4; i += 1) {
-          const angle = compassRad(i * 90);
-          ctx.beginPath();
-          ctx.moveTo(0, 0);
-          ctx.lineTo(Math.cos(angle) * gridRadius, Math.sin(angle) * gridRadius);
-          ctx.stroke();
-        }
+                for (let i = 0; i < 4; i += 1) {
+                    const angle = compassRad(i * 90);
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(Math.cos(angle) * gridRadius, Math.sin(angle) * gridRadius);
+                    ctx.stroke();
+                }
 
-        const route = normalizeDegrees(routeBearing ?? 0);
-        const bucket = {
-          headwind: { start: -45, end: 45, color: COLORS.headwind },
-          headCrosswindR: { start: 45, end: 90, color: COLORS.headCrosswind },
-          tailCrosswindR: { start: 90, end: 135, color: COLORS.tailCrosswind },
-          tailwind: { start: 135, end: 225, color: COLORS.tailwind },
-          tailCrosswindL: { start: 225, end: 270, color: COLORS.tailCrosswind },
-          headCrosswindL: { start: 270, end: 315, color: COLORS.headCrosswind },
-        };
+                const route = normalizeDegrees(routeBearing ?? 0);
+                const bucket = {
+                    headwind: { start: -45, end: 45, color: COLORS.headwind },
+                    headCrosswindR: { start: 45, end: 90, color: COLORS.headCrosswind },
+                    tailCrosswindR: { start: 90, end: 135, color: COLORS.tailCrosswind },
+                    tailwind: { start: 135, end: 225, color: COLORS.tailwind },
+                    tailCrosswindL: { start: 225, end: 270, color: COLORS.tailCrosswind },
+                    headCrosswindL: { start: 270, end: 315, color: COLORS.headCrosswind },
+                };
 
-        const baseOffset = bucketModeSelect.value === "route" ? route : 0;
-        Object.values(bucket).forEach((segment) => {
-          drawArc(
-            baseOffset + segment.start,
-            baseOffset + segment.end,
-            segment.color,
-            ringRadius,
-            ringWidth,
-          );
-        });
+                const baseOffset = bucketModeSelect.value === 'route' ? route : 0;
+                Object.values(bucket).forEach(segment => {
+                    drawArc(
+                        baseOffset + segment.start,
+                        baseOffset + segment.end,
+                        segment.color,
+                        ringRadius,
+                        ringWidth,
+                    );
+                });
 
-        drawArrow(route, COLORS.route, ringRadius + ringWidth * 0.9);
-        if (windDirectionFrom != null) {
-          drawArrow(normalizeDegrees(windDirectionFrom + 180), COLORS.wind, ringRadius + ringWidth * 0.5, { fullDiameter: true });
-        }
+                drawArrow(route, COLORS.route, ringRadius + ringWidth * 0.9);
+                if (windDirectionFrom != null) {
+                    drawArrow(
+                        normalizeDegrees(windDirectionFrom + 180),
+                        COLORS.wind,
+                        ringRadius + ringWidth * 0.5,
+                        { fullDiameter: true },
+                    );
+                }
 
-        ctx.restore();
-      };
+                ctx.restore();
+            };
 
-      const update = () => {
-        const windDirectionFrom = Number(windInput.value);
-        const routeBearing = Number(routeInput.value);
+            const update = () => {
+                const windDirectionFrom = Number(windInput.value);
+                const routeBearing = Number(routeInput.value);
 
-        windValueEl.textContent = windDirectionFrom.toFixed(1) + "°";
-        routeValueEl.textContent = routeBearing.toFixed(1) + "°";
+                windValueEl.textContent = windDirectionFrom.toFixed(1) + '°';
+                routeValueEl.textContent = routeBearing.toFixed(1) + '°';
 
-        const rawDelta = normalizeDegrees(windDirectionFrom - routeBearing);
-        const vector = windComponentFromRoute(windDirectionFrom, routeBearing);
-        const angleFromRoute = vector.angleFromRoute;
-        const absoluteAngle = Math.abs(angleFromRoute);
+                const rawDelta = normalizeDegrees(windDirectionFrom - routeBearing);
+                const vector = windComponentFromRoute(windDirectionFrom, routeBearing);
+                const angleFromRoute = vector.angleFromRoute;
+                const absoluteAngle = Math.abs(angleFromRoute);
 
-        rawDeltaEl.textContent = format(rawDelta);
-        angleFromRouteEl.textContent = format(angleFromRoute);
-        absoluteAngleEl.textContent = format(absoluteAngle);
-        headwindEl.textContent = vector.headwind;
-        headCrosswindEl.textContent = vector.headCrosswind;
-        tailCrosswindEl.textContent = vector.tailCrosswind;
-        tailwindEl.textContent = vector.tailwind;
+                rawDeltaEl.textContent = format(rawDelta);
+                angleFromRouteEl.textContent = format(angleFromRoute);
+                absoluteAngleEl.textContent = format(absoluteAngle);
+                headwindEl.textContent = vector.headwind;
+                headCrosswindEl.textContent = vector.headCrosswind;
+                tailCrosswindEl.textContent = vector.tailCrosswind;
+                tailwindEl.textContent = vector.tailwind;
 
-        const bucket = vector.headwind
-          ? "Headwind"
-          : vector.headCrosswind
-            ? "Head Crosswind"
-            : vector.tailCrosswind
-              ? "Tail Crosswind"
-              : "Tailwind";
-        bucketEl.textContent = bucket;
+                const bucket = vector.headwind
+                    ? 'Headwind'
+                    : vector.headCrosswind
+                      ? 'Head Crosswind'
+                      : vector.tailCrosswind
+                        ? 'Tail Crosswind'
+                        : 'Tailwind';
+                bucketEl.textContent = bucket;
 
-        bucketNoteEl.textContent =
-          bucketModeSelect.value === "route"
-            ? "Buckets are aligned to the route bearing. Arrows show the route bearing (blue) and wind-from direction (purple)."
-            : "Buckets are fixed to north (up). Arrows show the route bearing (blue) and wind-from direction (purple).";
+                bucketNoteEl.textContent =
+                    bucketModeSelect.value === 'route'
+                        ? 'Buckets are aligned to the route bearing. Arrows show the route bearing (blue) and wind-from direction (purple).'
+                        : 'Buckets are fixed to north (up). Arrows show the route bearing (blue) and wind-from direction (purple).';
 
-        drawVisualization(routeBearing, windDirectionFrom);
-      };
+                drawVisualization(routeBearing, windDirectionFrom);
+            };
 
-      windInput.addEventListener("input", update);
-      routeInput.addEventListener("input", update);
-      bucketModeSelect.addEventListener("change", update);
-      swapButton.addEventListener("click", () => {
-        const windValue = windInput.value;
-        windInput.value = routeInput.value;
-        routeInput.value = windValue;
-        update();
-      });
+            windInput.addEventListener('input', update);
+            routeInput.addEventListener('input', update);
+            bucketModeSelect.addEventListener('change', update);
+            swapButton.addEventListener('click', () => {
+                const windValue = windInput.value;
+                windInput.value = routeInput.value;
+                routeInput.value = windValue;
+                update();
+            });
 
-      update();
-    </script>
-  </body>
+            update();
+        </script>
+    </body>
 </html>

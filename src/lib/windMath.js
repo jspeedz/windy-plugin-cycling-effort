@@ -8,9 +8,9 @@
  * @param {number} degrees
  * @returns {number}
  */
-export const normalizeDegrees = (degrees) => {
-  const normalized = degrees % 360;
-  return normalized < 0 ? normalized + 360 : normalized;
+export const normalizeDegrees = degrees => {
+    const normalized = degrees % 360;
+    return normalized < 0 ? normalized + 360 : normalized;
 };
 
 /**
@@ -28,28 +28,28 @@ export const normalizeDegrees = (degrees) => {
  * @returns {{ headwind: number, headCrosswind: number, tailCrosswind: number, tailwind: number, angleFromRoute: number }}
  */
 export const windComponentFromRoute = (windDirectionFrom, routeBearing) => {
-  if (windDirectionFrom == null) {
-    return {
-      headwind: 0,
-      headCrosswind: 0,
-      tailCrosswind: 0,
-      tailwind: 0,
-      angleFromRoute: 0,
-    };
-  }
+    if (windDirectionFrom == null) {
+        return {
+            headwind: 0,
+            headCrosswind: 0,
+            tailCrosswind: 0,
+            tailwind: 0,
+            angleFromRoute: 0,
+        };
+    }
 
-  const rawDelta = normalizeDegrees(windDirectionFrom - routeBearing);
-  const angleFromRoute = rawDelta > 180 ? rawDelta - 360 : rawDelta;
-  const absoluteAngle = Math.abs(angleFromRoute);
+    const rawDelta = normalizeDegrees(windDirectionFrom - routeBearing);
+    const angleFromRoute = rawDelta > 180 ? rawDelta - 360 : rawDelta;
+    const absoluteAngle = Math.abs(angleFromRoute);
 
-  if (absoluteAngle <= 45) {
-    return { headwind: 1, headCrosswind: 0, tailCrosswind: 0, tailwind: 0, angleFromRoute };
-  }
-  if (absoluteAngle <= 90) {
-    return { headwind: 0, headCrosswind: 1, tailCrosswind: 0, tailwind: 0, angleFromRoute };
-  }
-  if (absoluteAngle <= 135) {
-    return { headwind: 0, headCrosswind: 0, tailCrosswind: 1, tailwind: 0, angleFromRoute };
-  }
-  return { headwind: 0, headCrosswind: 0, tailCrosswind: 0, tailwind: 1, angleFromRoute };
+    if (absoluteAngle <= 45) {
+        return { headwind: 1, headCrosswind: 0, tailCrosswind: 0, tailwind: 0, angleFromRoute };
+    }
+    if (absoluteAngle <= 90) {
+        return { headwind: 0, headCrosswind: 1, tailCrosswind: 0, tailwind: 0, angleFromRoute };
+    }
+    if (absoluteAngle <= 135) {
+        return { headwind: 0, headCrosswind: 0, tailCrosswind: 1, tailwind: 0, angleFromRoute };
+    }
+    return { headwind: 0, headCrosswind: 0, tailCrosswind: 0, tailwind: 1, angleFromRoute };
 };

@@ -4,11 +4,7 @@ import path from 'node:path';
 import commonjs from '@rollup/plugin-commonjs';
 import resolve from '@rollup/plugin-node-resolve';
 import terser from '@rollup/plugin-terser';
-import {
-    certificatePEM,
-    keyPEM,
-    transformCodeToESMPlugin,
-} from '@windycom/plugin-devtools';
+import { certificatePEM, keyPEM, transformCodeToESMPlugin } from '@windycom/plugin-devtools';
 import cleanup from 'rollup-plugin-cleanup';
 import serve from 'rollup-plugin-serve';
 import svelte from 'rollup-plugin-svelte';

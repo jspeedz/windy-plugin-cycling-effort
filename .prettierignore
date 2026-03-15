@@ -1,0 +1,14 @@
+dist
+vendor
+node_modules
+.docker
+composer.json
+composer.lock
+package-lock.json
+package.json
+.history/*
+.vscode/*
+*.tar
+*.gz
+*.zip
+*.log
