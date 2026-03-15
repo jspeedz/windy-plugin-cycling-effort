@@ -2,3 +2,16 @@ node_modules/
 dist/
 package/
 *.tgz
+.history/
+.idea/
+.tmp
+tmp
+.DS_Store
+.vscode
+.rollup.cache
+.secret-api-key.sh
+coverage
+nohup.out
+node_modules
+package-lock.json
+*.log
