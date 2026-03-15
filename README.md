@@ -74,6 +74,12 @@ Notes:
 - The colored ring is aligned to the route bearing; arrows show route (blue) and wind-from (purple).
 - Interpolator is not used. Unfortunately, we need to fetch wind data instead of using the interpolated data. That interpolated data is not accurate enough for our purposes. Using it causes segments to flip the wind direction 180 degrees sometimes resulting in segment colours/data that do not make sense.
 
+## Production deployment
+
+The direct file after deploying a new version of the plugin can be found here:
+https://windy-plugins.com/9417045/windy-plugin-cycling-effort/<version>/plugin.min.js
+Replace `<version>` with the plugin version you want to load (for example, the current version from `package.json`).
+
 ## Documentation sources
 
 - https://docs.windy-plugins.com/api/interfaces/broadcast.BasicBcastTypes.html

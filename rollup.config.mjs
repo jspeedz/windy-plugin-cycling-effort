@@ -7,7 +7,12 @@ import terser from '@rollup/plugin-terser';
 import { certificatePEM, keyPEM, transformCodeToESMPlugin } from '@windycom/plugin-devtools';
 import cleanup from 'rollup-plugin-cleanup';
 import serve from 'rollup-plugin-serve';
-import svelte from 'rollup-plugin-svelte';
+import rollupSvelte from 'rollup-plugin-svelte';
+import { less } from 'svelte-preprocess-less';
+import sveltePreprocess from 'svelte-preprocess';
+import rollupSwc from 'rollup-plugin-swc3';
+
+const useSourceMaps = true;
 
 const production = !process.env.ROLLUP_WATCH;
 const distPath = path.resolve('dist');
@@ -52,23 +57,38 @@ export default {
     input: 'src/plugin.svelte',
     external: id => id.startsWith('@windy/'),
     output: {
-        file: 'dist/plugin.js',
+        file: production ? 'dist/plugin.min.js' : 'dist/plugin.js',
         format: 'es',
-        sourcemap: true,
+        sourcemap: useSourceMaps,
         globals: {
             __DEV__: !production,
         },
         intro: `const __DEV__ = ${!production};`,
     },
     plugins: [
-        svelte({
+        rollupSvelte({
+            emitCss: false,
             compilerOptions: {
                 dev: !production,
             },
-            emitCss: false,
+            preprocess: {
+                style: less({
+                    sourceMap: useSourceMaps,
+                    math: 'always',
+                }),
+                script: data => {
+                    const preprocessed = sveltePreprocess({ sourceMap: useSourceMaps });
+                    return preprocessed.script(data);
+                },
+            },
+        }),
+        rollupSwc({
+            include: ['**/*.ts', '**/*.svelte'],
+            sourceMaps: useSourceMaps,
         }),
         resolve({
             browser: true,
+            preferBuiltins: false,
             dedupe: ['svelte'],
         }),
         commonjs(),
