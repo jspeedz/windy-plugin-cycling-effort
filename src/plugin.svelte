@@ -233,9 +233,9 @@
 
 <style lang="less">
     /* Style variables are used from the windy parent page */
-    :global(#plugin-rhbottom .cycling-panel .stats-grid) {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
+    //:global(#plugin-rhbottom .cycling-panel .stats-grid) {
+    //    grid-template-columns: repeat(3, minmax(0, 1fr));
+    //}
 
     .cycling-effort-panel {
         &.cycling-effort-panel-mobile {
