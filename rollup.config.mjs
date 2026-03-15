@@ -60,7 +60,6 @@ export default {
         file: `dist/plugin.min.js`,
         format: 'es',
         sourcemap: useSourceMaps,
-        plugins: [terser()],
         globals: {
             __DEV__: !production,
         },
