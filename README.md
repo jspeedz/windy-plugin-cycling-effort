@@ -59,12 +59,12 @@ npm run build
 
 ## Wind Angle Debugger/Visualizer
 
-Use `wind-angle-visualizer.html` to experiment with wind direction vs route bearing and visualize the six buckets.
+Use `src/wind-angle-visualizer.html` to experiment with wind direction vs route bearing and visualize the six buckets.
 
 Quick open:
 
 ```zsh
-open wind-angle-visualizer.html
+open src/wind-angle-visualizer.html
 ```
 
 Notes:
