@@ -25,7 +25,7 @@
   - Elevation and weather results are cached in IndexedDB stores (`elevation`, `weather`) with TTL-based expiration managed by the controller.
     - Renders a colored overlay layer, then updates `routeGraphSegments` for the Svelte UI.
 - Caching:
-    - Elevation results are cached in `localStorage` under `plugin-cycling-effort-elevation-cache`.
+    - Elevation and weather results are cached in IndexedDB stores (`elevation`, `weather`) with TTL-based expiration managed by the controller.
 
 ## Build and run
 
