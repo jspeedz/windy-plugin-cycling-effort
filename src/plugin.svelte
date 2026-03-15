@@ -322,7 +322,7 @@
 
         .graph-info {
             display: flex;
-            align-items: left;
+            align-items: flex-start;
             justify-content: flex-end;
             gap: 5px;
             margin-top: 2px;
