@@ -128,6 +128,7 @@ module.exports = {
         L: true,
         W: true,
         console: true,
+        __DEV__: true,
     },
     plugins: ['import'],
     extends: ['eslint:recommended'],

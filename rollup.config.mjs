@@ -55,6 +55,10 @@ export default {
         file: 'dist/plugin.js',
         format: 'es',
         sourcemap: true,
+        globals: {
+            __DEV__: !production,
+        },
+        intro: `const __DEV__ = ${!production};`,
     },
     plugins: [
         svelte({

@@ -36,11 +36,12 @@ const MAX_POINTS_FOR_COMPUTE = 500;
 // 10 samples/km = 1 sample every 100 metres.
 const MAX_ACCURATE_WIND_SAMPLES_PER_KM = 5;
 const MIN_TRACK_KM = 0.08;
-const DEBUG_LOGS = true;
+// eslint-disable-next-line no-redeclare
+/* global __DEV__ */
+const DEBUG_LOGS = __DEV__;
 const LOG_PREFIX = '🚴 [plugin-cycling-effort]';
 const STATUS_NO_FILE_LOADED =
     'Please select a route using "Menu" > "Display KML, GPX, or GeoJSON".';
-
 const ELEVATION_DB_NAME = 'windy-plugin-cycling-effort';
 const ELEVATION_STORE_NAME = 'elevation';
 const WEATHER_STORE_NAME = 'weather';
