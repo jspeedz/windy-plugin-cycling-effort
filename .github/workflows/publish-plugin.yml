@@ -15,9 +15,16 @@ jobs:
             WINDY_API_KEY: '${{ secrets.WINDY_API_KEY }}'
         steps:
             - uses: actions/checkout@v6
-            - name: Build
+            - name: Use Node.js
+              id: cache-npm
+              uses: actions/setup-node@v6
+              with:
+                  node-version: '24.x'
+                  cache: 'npm'
+                  cache-dependency-path: package-lock.json
+            - name: Install npm dependencies & build
               run: |
-                  npm install --ignore-scripts
+                  npm ci --ignore-scripts
                   npm run build
             - name: Publish Plugin
               run: |
