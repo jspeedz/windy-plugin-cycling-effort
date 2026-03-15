@@ -94,9 +94,9 @@ const SEGMENT_COLOR_INTENSITY_MIX = Object.freeze({
   terrain: 0.3,
 });
 
-const ELEVATION_DB_NAME = "windy-plugin-cycling-effort-v1";
+const ELEVATION_DB_NAME = "windy-plugin-cycling-effort";
 const ELEVATION_STORE_NAME = "elevation";
-  const WEATHER_STORE_NAME = "weather";
+const WEATHER_STORE_NAME = "weather";
 const ELEVATION_TTL_MS = 2 * 30 * 24 * 60 * 60 * 1000; // ~2 months
 const WEATHER_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -772,8 +772,9 @@ class CyclingEffortController {
     this.hasRenderedSegments = false;
     this.lastUploadRouteId = null;
     this.elevationDB = openElevationDB().then((db) => {
-      cleanStaleRows(db, ELEVATION_STORE_NAME, ELEVATION_TTL_MS);
+      consoleLog("Cleaning elevation/weather cache", "info");
       cleanStaleRows(db, WEATHER_STORE_NAME, WEATHER_TTL_MS);
+      cleanStaleRows(db, ELEVATION_STORE_NAME, ELEVATION_TTL_MS);
       return db;
     }).catch(() => null);
     this.dimmedRouteLayers = new Map();
