@@ -2,13 +2,13 @@
 
 Windy.com plugin that evaluates cycling trip effort/difficulty for uploaded GPX/KML/GeoJSON route tracks.
 
+Route segments are color-coded from green (easy) to red (hard) directly on the map, with a single effort score in the panel. Use it to compare forecast conditions and pinpoint the best time — and direction — to ride.
+
 Factors affecting effort which are evaluated:
 
 - Route length
 - Elevation profile (ascent/descent)
 - Wind speed, gust speed, and wind direction relative to route direction based on the current selected windy.com weather model weather predictions.
-
-It visualizes per-segment difficulty directly on map (green = easier, red = harder) and shows one total effort score in the plugin panel with which it should be easy to compare weather conditions and find the ideal time to go out cycling.
 
 ## Route segment / graph colours representing 'effort' / 'difficulty'
 
