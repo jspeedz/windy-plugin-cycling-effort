@@ -26,7 +26,7 @@ And thus colours should reflect this by using the entire range going from dark t
 
 ## Requirements
 
-- Node.js 18+
+- Node.js 20.19+ (or >= 22.12.0)
 
 ## Install
 
