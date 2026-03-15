@@ -1,3 +1,5 @@
+# @see https://docs.windy-plugins.com/getting-started/publishing-plugin.html
+# @see https://api.windy.com/keys
 name: publish-plugin
 concurrency:
     group: production
