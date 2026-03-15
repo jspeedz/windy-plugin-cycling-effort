@@ -69,7 +69,7 @@ open wind-angle-visualizer.html
 
 Notes:
 
-- Input can be degrees or radians.
+- Input must be in degrees (0–359.9).
 - The colored ring is aligned to the route bearing; arrows show route (blue) and wind-from (purple).
 - Interpolator is not used. Unfortunately, we need to fetch wind data instead of using the interpolated data. That interpolated data is not accurate enough for our purposes. Using it causes segments to flip the wind direction 180 degrees sometimes resulting in segment colours/data that do not make sense.
 
