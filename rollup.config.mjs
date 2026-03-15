@@ -73,7 +73,7 @@ export default {
             },
             preprocess: {
                 style: less({
-                    sourceMap: false,
+                    sourceMap: useSourceMaps,
                     math: 'always',
                 }),
                 script: data => {
