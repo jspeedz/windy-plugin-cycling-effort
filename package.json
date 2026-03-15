@@ -33,15 +33,7 @@
         "pre-commit": "npm run prettier:write && npm run lint"
     },
     "devDependencies": {
-        "@rollup/plugin-commonjs": "^25.0.7",
-        "@rollup/plugin-node-resolve": "^15.2.3",
-        "@rollup/plugin-terser": "^0.4.4",
         "@windycom/plugin-devtools": "3.0.3",
-        "rollup": "^4.9.6",
-        "rollup-plugin-cleanup": "^3.2.1",
-        "rollup-plugin-serve": "^1.1.1",
-        "rollup-plugin-svelte": "^7.1.6",
-        "svelte": "^4.2.9",
         "vite": "^8.0.0",
         "vitest": "^4.1.0"
     }
