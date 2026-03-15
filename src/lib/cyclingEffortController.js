@@ -2087,7 +2087,7 @@ class CyclingEffortController {
             if (!analysis.segments.length) {
                 this.clearOverlay();
                 this.restoreOriginalRouteStyle();
-                consoleLog('Route found, but it is too short for evaluation.', 'warning');
+                consoleLog('Route found, but it is too short for evaluation.', 'warn');
                 patchUiState({
                     hasRoute: false,
                     totalEffort: null,

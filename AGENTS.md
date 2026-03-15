@@ -39,7 +39,7 @@
 
 ## Debugging and tools
 
-- `wind-angle-debug.html` is a standalone tool to visualize wind direction vs route bearing.
+- `wind-angle-visualizer.html` is a standalone tool to visualize wind direction vs route bearing.
 - Controller debug toggles live in `src/lib/cyclingEffortController.js`:
     - `DEBUG_LOGS`, `ENABLE_SEGMENT_DEBUG_TOOLTIP`.
 

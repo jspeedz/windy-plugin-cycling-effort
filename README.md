@@ -57,21 +57,21 @@ npm run build
 3. The plugin auto-detects the route, computes difficulty, and colors the route segments.
 4. Change forecast model/time in Windy UI and the score is recalculated automatically.
 
-## Wind Angle Debugger
+## Wind Angle Debugger/Visualizer
 
-Use `wind-angle-debug.html` to experiment with wind direction vs route bearing and visualize the six buckets.
+Use `wind-angle-visualizer.html` to experiment with wind direction vs route bearing and visualize the six buckets.
 
 Quick open:
 
 ```zsh
-open wind-angle-debug.html
+open wind-angle-visualizer.html
 ```
 
 Notes:
 
 - Input can be degrees or radians.
 - The colored ring is aligned to the route bearing; arrows show route (blue) and wind-from (purple).
-- Interpolator is not used. Unfortunately, we need to fetch wind data instead of using the interpolated data. This that data is not accurate enough for our purposes. Using it causes segments to flip the wind direction 180 degrees sometimes resulting in segment colours/data that does not make sense.
+- Interpolator is not used. Unfortunately, we need to fetch wind data instead of using the interpolated data. That interpolated data is not accurate enough for our purposes. Using it causes segments to flip the wind direction 180 degrees sometimes resulting in segment colours/data that do not make sense.
 
 ## Documentation sources
 
