@@ -10,7 +10,8 @@
 ## Entry points and key files
 
 - `src/plugin.svelte` wires Windy lifecycle hooks (`onmount`, `onopen`, `onclose`, `ondestroy`) to the controller.
-- `src/lib/cyclingEffortController.js` contains route detection, scoring, overlay rendering, and Windy API integration.
+- `src/lib/cyclingEffortController.js` contains route detection, overlay rendering, and Windy API integration.
+- `src/lib/windMath.js` contains all pure math utilities, scoring functions, segment tuning constants, and color computation.
 - `src/lib/uiState.js` is the single UI store (`uiState`, `patchUiState`, `resetUiState`).
 - `src/pluginConfig.ts` declares plugin metadata (name, routes, UI mode).
 
@@ -46,4 +47,4 @@
 ## Conventions
 
 - UI reads only from `uiState`; controller owns updates via `patchUiState`.
-- Segment tuning constants live near the top of `src/lib/cyclingEffortController.js` (e.g., `SEGMENT_*`). Keep new knobs there.
+- Segment tuning constants and math utilities live in `src/lib/windMath.js` (e.g., `SEGMENT_*`). Keep new knobs there.
