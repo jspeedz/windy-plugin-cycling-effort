@@ -57,7 +57,7 @@ export default {
     input: 'src/plugin.svelte',
     external: id => id.startsWith('@windy/'),
     output: {
-        file: `dist/plugin.min.js`,
+        file: production ? 'dist/plugin.min.js' : 'dist/plugin.js',
         format: 'es',
         sourcemap: useSourceMaps,
         globals: {
