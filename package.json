@@ -1,7 +1,12 @@
 {
     "name": "windy-plugin-cycling-effort",
     "description": "Windy.com plugin for weather-aware cycling route effort scoring.",
-    "main": "dist/plugin.min.js",
+    "version": "0.1.2",
+    "author": "jspeedz",
+    "homepage": "https://github.com/jspeedz/windy-plugin-cycling-effort",
+    "bugs": {
+        "url": "https://github.com/jspeedz/windy-plugin-cycling-effort/issues"
+    },
     "keywords": [
         "windy",
         "windy.com",
@@ -11,11 +16,7 @@
         "type": "git",
         "url": "git+https://github.com/jspeedz/windy-plugin-cycling-effort.git"
     },
-    "homepage": "https://github.com/jspeedz/windy-plugin-cycling-effort",
-    "bugs": {
-        "url": "https://github.com/jspeedz/windy-plugin-cycling-effort/issues"
-    },
-    "version": "0.1.2",
+    "main": "dist/plugin.min.js",
     "type": "module",
     "license": "ISC",
     "private": true,
