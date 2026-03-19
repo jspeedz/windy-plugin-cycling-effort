@@ -1,6 +1,11 @@
-<div class="cycling-effort-panel" class:cycling-effort-panel-mobile={isMobile}>
+<div
+    class="cycling-effort-panel"
+    class:cycling-effort-panel-mobile={isMobile}
+    bind:this={cyclingEffortPanelElement}
+>
     <div class="fg-yellow">
-        Cycling effort{#if $uiState.hasRoute}: <span class="label"
+        Cycling effort
+        {#if $uiState.hasRoute}: <span class="label"
                 ><strong class="size-m">{$uiState.totalEffort} points</strong></span
             >{/if}
     </div>
@@ -136,18 +141,21 @@
         <!--</section>-->
         <section>
             <!--tooltip--left data-tooltip="{$uiState.status}"-->
-            <div
-                class="rhbottom__legend metric-legend mt-5 noselect"
-                style="background: {legendGradient};"
-            >
-                <span>Easier</span>
-                <span></span>
-                <span></span>
-                <span></span>
-                <span></span>
-                <span></span>
-                <span>Harder</span>
-                <span></span>
+            <div class="metric-legend-wrapper mt-5 noselect">
+                <div class="rhbottom__legend metric-legend" style="background: {legendGradient};">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+                <div class="metric-legend-labels">
+                    <span>easy</span>
+                    <span>hard</span>
+                </div>
             </div>
         </section>
     {/if}
@@ -176,9 +184,32 @@
 </script>
 
 <script>
+    import { onMount, onDestroy } from 'svelte';
     import { isMobile } from '@windy/rootScope';
     import { effortLegendGradient } from './lib/windMath';
     import { uiState } from './lib/uiState';
+
+    let cyclingEffortPanelElement;
+    let resizeObserver;
+
+    onMount(() => {
+        resizeObserver = new ResizeObserver(entries => {
+            for (const entry of entries) {
+                document.documentElement.style.setProperty(
+                    '--windy-plugin-cycling-effort-panel-height',
+                    `${Math.round(entry.contentRect.height) + 50}px`,
+                );
+            }
+        });
+        if (cyclingEffortPanelElement) {
+            resizeObserver.observe(cyclingEffortPanelElement);
+        }
+    });
+
+    onDestroy(() => {
+        resizeObserver?.disconnect();
+        document.documentElement.style.removeProperty('--windy-plugin-cycling-effort-panel-height');
+    });
 
     const handleInvertRoute = () => controller.invertRoute();
 
@@ -236,12 +267,6 @@
     //:global(#plugin-rhbottom .cycling-panel .stats-grid) {
     //    grid-template-columns: repeat(3, minmax(0, 1fr));
     //}
-
-    .cycling-effort-panel {
-        &.cycling-effort-panel-mobile {
-            padding: 30px 15px 15px;
-        }
-    }
 
     /*.title-row {*/
     /*    display: flex;*/
@@ -353,12 +378,55 @@
         margin-right: 2px;
     }
 
-    .metric-legend {
-        padding: 0 6px 0 10px;
-        border-radius: 20px;
+    .metric-legend-wrapper {
+        position: relative;
 
-        > span {
-            width: 12.5%;
+        .metric-legend {
+            padding: 0 6px 0 10px;
+            border-radius: 20px;
+
+            > span {
+                width: 12.5%;
+            }
+        }
+
+        .metric-legend-labels {
+            font-size: 12px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+
+            span:first-child {
+                padding: 0 9px 3px 10px;
+            }
+
+            span:last-child {
+                padding: 0 10px 1px 10px;
+            }
         }
     }
+
+    // Mobile styles
+    .cycling-effort-panel {
+        &.cycling-effort-panel-mobile {
+            padding: 30px 15px 15px;
+        }
+    }
+
+    :global(.plugin-mobile-bottom-slide.open:has(.cycling-effort-panel-mobile)),
+    :global(.plugin-mobile-bottom-slide.open-half:has(.cycling-effort-panel-mobile)) {
+        // This plugin's content is smaller than the default open/open-half sizes of the panel.
+        // This wastes screen real estate.
+        // We customize the slide positions for the plugin panel to fit the plugin content and maximize the viewable map area when the plugin is open on mobile.
+        // Unfortunately there is no hook in windy to be able to do this without breaking out of the svelte component namespace, AFAIK.
+        // @see https://svelte.dev/docs/svelte/global-styles
+        transform: translateY(calc(100% - var(--windy-plugin-cycling-effort-panel-height, 50%)));
+    }
+    // Mobile styles END
 </style>
