@@ -5,9 +5,17 @@
 Install the plugin in Windy as an external plugin.
 
 - Go to [Windy.com](https://www.windy.com/), open the menu, and select "Install windy plugin".
-- Click "Load plugin directly from URL" and enter https://windy-plugins.com/9417045/windy-plugin-cycling-effort/0.1.3/plugin.min.js into the text box.
+- Click "Load plugin directly from URL" and enter `https://windy-plugins.com/9417045/windy-plugin-cycling-effort/0.1.3/plugin.min.js` into the text box.
+  ![Install plugin on desktop](install.png 'Install plugin')
 - Click "Install trusted plugin" and then close the menu.
 - The plugin should now load and be available in the list of active plugins.
+
+## Upgrading
+
+1. Check [the plugin releases page](hhttps://github.com/jspeedz/windy-plugin-cycling-effort/releases) for the latest release number.
+2. Uninstall the plugin by opening the menu and clicking on the bin icon next to the plugin name.
+   ![Uninstall plugin on desktop](uninstall.png 'Remove plugin')
+3. Now follow the Installation instructions again. Replace the version number in the URL with the latest available. 
 
 ## Desktop
 
