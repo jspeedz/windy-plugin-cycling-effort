@@ -89,7 +89,7 @@ Notes:
 ### Production deployment
 
 Deployment should automatically happen via github action when pushing to the main branch via the [publish-plugin.yml](.github/workflows/publish-plugin.yml) workflow.
-Just make sure you bump the version in the [package.json](package.json) and [pluginConfig.ts](src/pluginConfig.ts) files before pushing.
+Just make sure you bump the version in the [package.json](package.json), [USAGE.md](docs/USAGE.md) and [pluginConfig.ts](src/pluginConfig.ts) files before pushing.
 
 After deploying, create a new release on github.
 
