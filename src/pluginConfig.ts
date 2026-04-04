@@ -1,6 +1,6 @@
 export default {
     name: 'windy-plugin-cycling-effort',
-    version: '0.1.2',
+    version: '0.1.3',
     title: 'Cycling effort',
     icon: '🚴',
     description:
