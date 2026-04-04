@@ -11,6 +11,10 @@ Install the plugin in Windy as an external plugin.
 
 ## Desktop
 
+The best way to use the plugin. Changing prediction models or forecast time is supported on desktop.
+
+![Desktop use](desktop.png 'Desktop use')
+
 1. Upload a GPX/KML/GeoJSON route using Windy's native upload feature.
     - Open the plugin by opening the menu and clicking "Cycling effort".
     - Open the menu and click "Display KML, GPX, or GeoJSON".
@@ -18,14 +22,15 @@ Install the plugin in Windy as an external plugin.
 2. The plugin now auto-detects the route, computes difficulty, and colors the route segments.
 3. The score will now be recalculated automatically when changing the forecast model or forecast time in the Windy UI.
 
-![alt text](someimage.png 'Title')
-
 ## Mobile
 
 This plugin also works on mobile devices after installing it on the desktop website.
+
+![Mobile use](mobile.png 'Mobile use')
 
 1. Upload a GPX/KML/GeoJSON route using Windy's native upload feature.
     - Open the plugin by opening the menu and clicking "Cycling effort".
     - Open the menu and click "Display KML, GPX, or GeoJSON".
     - Select either a saved file or upload a new route to windy.
 2. Re-open the menu and click "Cycling effort". The effort will now be calculated automatically for the currently selected weather conditions.
+
