@@ -1,4 +1,36 @@
-# Using Windy Cycling Effort Plugin
+# Windy Cycling Effort Plugin
+
+Windy.com plugin that evaluates cycling trip effort/difficulty for uploaded GPX/KML/GeoJSON route tracks.
+
+Route segments are color-coded from green (easy) to red (hard) directly on the map, with a single effort score in the panel. Use it to compare forecast conditions and pinpoint the best time to ride.
+The 'invert' option is there, so you can compare setting off in one or the other direction. Useful for routes that start and end at or near the same point.
+
+Factors affecting effort which are evaluated:
+
+- Route length
+- Elevation profile (ascent/descent)
+- Wind speed, wind gust speed, and wind direction relative to the direction of travel based on the current selected windy.com weather model weather predictions.
+
+This plugin was made with The (flat) Netherlands in mind where wind is your biggest enemy on the bicycle.
+It might be less useful for mountains (or very hilly areas) without much wind. As the weather factors taken into account have less effect on the 'total effort' than large changes in elevation.
+
+Please note that this plugin is in beta. I have no clue how well these calculations will perform under different circumstances, as I can only validate and compare plugin output with my own experience on bike rides.
+It might need more fine-tuning and/or balancing of the calculations.
+If you have any feedback or suggestions, please feel free to reach out!
+
+## Route segment / graph colours representing 'effort' / 'difficulty'
+
+The segments of the route, and the colours in the graph range from green (easy) to red (difficult) to visualize effort along the route.
+These are the rules:
+
+Slow wind has low impact, high wind speed has high impact.
+Tailwind makes cycling progressively easier the higher the wind(-gust) speeds go.
+Headwind does the opposite, makes cycling progressively more difficult the higher wind(-gust) speeds go.
+So: The faster the wind/gust speeds, the easier and respectively more difficult the effort gets.
+
+Going up or downhill always has the same impact regardless of weather.
+
+And thus colours should reflect this by using the entire range going from dark to light green, light to dark yellow, light to dark orange, light to dark red. The center point should be no wind/gust or elevation change at all.
 
 ## Installation
 
